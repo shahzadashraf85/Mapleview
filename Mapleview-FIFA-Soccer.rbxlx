@@ -1,0 +1,3025 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+  <External>null</External>
+  <External>nil</External>
+  <Item class="Workspace" referent="RBX000013">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="FilteringEnabled">true</bool>
+    </Properties>
+  </Item>
+  <Item class="Teams" referent="RBX000014">
+    <Properties>
+      <string name="Name">Teams</string>
+    </Properties>
+  </Item>
+  <Item class="Lighting" referent="RBX000015">
+    <Properties>
+      <string name="Name">Lighting</string>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="RBX000016">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="RBX000017">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+    <Item class="ModuleScript" referent="RBX000001">
+      <Properties>
+        <string name="Name">BallPhysics</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- BallPhysics.luau
+-- Shared deterministic-style ball physics including Magnus curve, air drag, and turf bounce.
+
+local Config = require(script.Parent.Config)
+
+local BallPhysics = {}
+
+export type BallState = {
+	Position: Vector3,
+	Velocity: Vector3,
+	Spin: Vector3, -- Angular velocity vector; Spin:Cross(Velocity) produces Magnus curve
+}
+
+function BallPhysics.Step(state: BallState, dt: number, pitchHalfLength: number, pitchHalfWidth: number): (BallState, boolean)
+	local b = Config.Ball
+	local pos = state.Position
+	local vel = state.Velocity
+	local spin = state.Spin
+	local bounced = false
+
+	-- 1. Gravity
+	vel += Vector3.new(0, -b.Gravity * dt, 0)
+
+	-- 2. Magnus Effect (curve in flight: F_m ~ spin x velocity)
+	if spin.Magnitude > 0.01 and vel.Magnitude > 1 then
+		local magnusAccel = spin:Cross(vel) * b.MagnusCoefficient
+		vel += magnusAccel * dt
+	end
+
+	-- 3. Aerodynamic Drag
+	local dragFactor = math.max(0, 1 - b.AirDrag * dt)
+	vel *= dragFactor
+
+	-- Clamp max speed
+	if vel.Magnitude > b.MaxSpeed then
+		vel = vel.Unit * b.MaxSpeed
+	end
+
+	-- 4. Integrate position
+	pos += vel * dt
+
+	-- 5. Ground collision (pitch surface is at Y = 0)
+	local minY = b.Radius
+	if pos.Y <= minY then
+		pos = Vector3.new(pos.X, minY, pos.Z)
+		if vel.Y < -2.5 then
+			vel = Vector3.new(vel.X, -vel.Y * b.BounceRestitution, vel.Z)
+			bounced = true
+		else
+			vel = Vector3.new(vel.X, 0, vel.Z)
+		end
+
+		-- Grass rolling friction
+		local friction = math.pow(b.GrassFriction, dt * 60)
+		vel = Vector3.new(vel.X * friction, vel.Y, vel.Z * friction)
+		spin *= math.pow(b.SpinDecay, dt * 60)
+	else
+		-- Slight air spin decay
+		spin *= math.pow(0.997, dt * 60)
+	end
+
+	-- 6. Stadium outer wall safety clamp (so ball never falls into the void)
+	local maxBoundX = pitchHalfWidth + 45
+	local maxBoundZ = pitchHalfLength + 45
+	if math.abs(pos.X) > maxBoundX then
+		pos = Vector3.new(math.sign(pos.X) * maxBoundX, pos.Y, pos.Z)
+		vel = Vector3.new(-vel.X * 0.5, vel.Y, vel.Z)
+	end
+	if math.abs(pos.Z) > maxBoundZ then
+		pos = Vector3.new(pos.X, pos.Y, math.sign(pos.Z) * maxBoundZ)
+		vel = Vector3.new(vel.X, vel.Y, -vel.Z * 0.5)
+	end
+
+	return {
+		Position = pos,
+		Velocity = vel,
+		Spin = spin,
+	}, bounced
+end
+
+-- Computes a trajectory preview array for curving free kicks / shots
+function BallPhysics.PredictTrajectory(
+	startPos: Vector3,
+	initialVel: Vector3,
+	spin: Vector3,
+	steps: number,
+	stepDt: number,
+	pitchHalfLength: number,
+	pitchHalfWidth: number
+): { Vector3 }
+	local points = table.create(steps)
+	local state: BallState = {
+		Position = startPos,
+		Velocity = initialVel,
+		Spin = spin,
+	}
+	for i = 1, steps do
+		state = BallPhysics.Step(state, stepDt, pitchHalfLength, pitchHalfWidth)
+		points[i] = state.Position
+	end
+	return points
+end
+
+return BallPhysics
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000002">
+      <Properties>
+        <string name="Name">Catalog</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- Catalog.luau
+-- Unlockable Custom Kits, Celebrations, and Dream Squad Formations.
+
+local Catalog = {}
+
+export type KitItem = {
+	Id: string,
+	Name: string,
+	Price: number,
+	Primary: Color3,
+	Secondary: Color3,
+	Accent: Color3,
+	Description: string,
+}
+
+export type CelebrationItem = {
+	Id: string,
+	Name: string,
+	Price: number,
+	Duration: number,
+	Description: string,
+}
+
+Catalog.Kits = {
+	{
+		Id = "classic_striker",
+		Name = "Classic Striker",
+		Price = 0,
+		Primary = Color3.fromRGB(30, 100, 240),
+		Secondary = Color3.fromRGB(255, 255, 255),
+		Accent = Color3.fromRGB(250, 204, 21),
+		Description = "Standard club kit with crisp white trim.",
+	},
+	{
+		Id = "royal_madrid",
+		Name = "Galactico Gold",
+		Price = 150,
+		Primary = Color3.fromRGB(245, 245, 250),
+		Secondary = Color3.fromRGB(212, 175, 55),
+		Accent = Color3.fromRGB(30, 41, 59),
+		Description = "Championship white with royal gold accents.",
+	},
+	{
+		Id = "midnight_neon",
+		Name = "Midnight Neon",
+		Price = 250,
+		Primary = Color3.fromRGB(15, 23, 42),
+		Secondary = Color3.fromRGB(0, 255, 170),
+		Accent = Color3.fromRGB(56, 189, 248),
+		Description = "Stealth obsidian jersey with electric mint trim.",
+	},
+	{
+		Id = "crimson_inferno",
+		Name = "Crimson Inferno",
+		Price = 300,
+		Primary = Color3.fromRGB(185, 28, 28),
+		Secondary = Color3.fromRGB(251, 146, 60),
+		Accent = Color3.fromRGB(255, 255, 255),
+		Description = "Fiery red and ember orange matchday kit.",
+	},
+	{
+		Id = "samba_legacy",
+		Name = "Samba Legacy",
+		Price = 400,
+		Primary = Color3.fromRGB(250, 204, 21),
+		Secondary = Color3.fromRGB(22, 163, 74),
+		Accent = Color3.fromRGB(29, 78, 216),
+		Description = "Iconic canary gold and emerald green.",
+	},
+}
+
+Catalog.Celebrations = {
+	{
+		Id = "knee_slide",
+		Name = "Corner Knee Slide",
+		Price = 0,
+		Duration = 2.6,
+		Description = "Slide across the turf toward the corner flag.",
+	},
+	{
+		Id = "siuuu_leap",
+		Name = "Championship Leap",
+		Price = 120,
+		Duration = 2.4,
+		Description = "Soaring 180-spin jump with a power landing.",
+	},
+	{
+		Id = "backflip",
+		Name = "Acrobatic Backflip",
+		Price = 220,
+		Duration = 2.2,
+		Description = "High-flying mid-air backflip in front of the stands.",
+	},
+	{
+		Id = "trophy_lift",
+		Name = "Imaginary Trophy Lift",
+		Price = 350,
+		Duration = 3.0,
+		Description = "Hoist the championship cup high above your head.",
+	},
+}
+
+Catalog.Formations = {
+	"4-3-3 Attack",
+	"4-4-2 Classic",
+	"3-5-2 Wingplay",
+	"1-2-1 Diamond (5v5)",
+	"2-1-1 Sweeper (5v5)",
+}
+
+function Catalog.GetKit(id: string): KitItem?
+	for _, kit in ipairs(Catalog.Kits) do
+		if kit.Id == id then
+			return kit
+		end
+	end
+	return nil
+end
+
+function Catalog.GetCelebration(id: string): CelebrationItem?
+	for _, cel in ipairs(Catalog.Celebrations) do
+		if cel.Id == id then
+			return cel
+		end
+	end
+	return nil
+end
+
+return Catalog
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000003">
+      <Properties>
+        <string name="Name">Config</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- Config.luau
+-- Central configuration for pitch dimensions, ball physics, match modes, and controls.
+
+local Config = {}
+
+export type MatchMode = "5v5" | "11v11"
+
+Config.MatchModes = {
+	["5v5"] = {
+		Label = "5v5 Fast-Paced",
+		MaxPlayersPerTeam = 5,
+		HalfDurationSeconds = 150, -- 2m 30s per half
+		PitchLength = 220,
+		PitchWidth = 130,
+		GoalWidth = 22,
+		GoalHeight = 9,
+	},
+	["11v11"] = {
+		Label = "11v11 Competitive",
+		MaxPlayersPerTeam = 11,
+		HalfDurationSeconds = 240, -- 4m per half
+		PitchLength = 320,
+		PitchWidth = 190,
+		GoalWidth = 28,
+		GoalHeight = 10.5,
+	},
+}
+
+Config.DefaultMode = "5v5" :: MatchMode
+Config.IntermissionSeconds = 15
+Config.GoalCelebrationSeconds = 6
+Config.HalfTimeSeconds = 10
+Config.TrophyCeremonySeconds = 14
+
+-- Stadium origin (center of pitch surface)
+Config.PitchCenter = Vector3.new(0, 0, 0)
+Config.TurfThickness = 2
+
+-- Ball Physics Constants
+Config.Ball = {
+	Radius = 1.45,
+	Gravity = 68,              -- Studs/s^2 (tuned for crisp Roblox arc)
+	AirDrag = 0.22,            -- Linear aerodynamic drag
+	MagnusCoefficient = 0.042, -- Spin-to-curve acceleration factor
+	GrassFriction = 0.985,     -- Ground roll damping per 60Hz tick
+	BounceRestitution = 0.62,  -- Vertical bounce elasticity
+	SpinDecay = 0.992,         -- Spin decay per tick
+	MaxSpeed = 165,
+	DribbleDistance = 4.2,     -- Studs in front of player when dribbling
+	DribbleSnapRange = 6.5,    -- Range to pick up loose ball
+	StealCooldown = 0.65,      -- Seconds after being tackled before re-grabbing
+}
+
+-- Kick & Mechanics Constants
+Config.Kicks = {
+	MinPower = 38,
+	MaxShotPower = 138,
+	MaxPassPower = 88,
+	MaxThroughBallPower = 98,
+	MaxLobPower = 112,
+	MaxSpin = 28, -- rad/s equivalent for Magnus curve
+	ChargeRate = 1.35, -- Full charge in ~0.75s
+	TackleImpulse = 58,
+	TackleRange = 7.5,
+	TackleCooldown = 1.6,
+	DiveSpeed = 54,
+	DiveUpward = 16,
+	DiveCooldown = 1.4,
+	GKBoxDepth = 38,
+	GKBoxWidth = 72,
+}
+
+-- Stamina
+Config.Stamina = {
+	Max = 100,
+	SprintDrainPerSec = 18,
+	RegenPerSec = 14,
+	BaseWalkSpeed = 19,
+	DribbleWalkSpeed = 17.5,
+	SprintSpeed = 27,
+	DribbleSprintSpeed = 24.5,
+}
+
+-- Teams
+Config.Teams = {
+	Home = {
+		Name = "Home FC",
+		Color = BrickColor.new("Bright blue"),
+		PrimaryColor = Color3.fromRGB(28, 100, 242),
+		SecondaryColor = Color3.fromRGB(255, 255, 255),
+	},
+	Away = {
+		Name = "Away United",
+		Color = BrickColor.new("Bright red"),
+		PrimaryColor = Color3.fromRGB(224, 36, 36),
+		SecondaryColor = Color3.fromRGB(20, 20, 24),
+	},
+}
+
+-- Rewards
+Config.Rewards = {
+	GoalCoins = 50,
+	AssistCoins = 30,
+	SaveCoins = 35,
+	WinCoins = 120,
+	LossCoins = 40,
+	WinELO = 25,
+	LossELO = -15,
+}
+
+return Config
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000004">
+      <Properties>
+        <string name="Name">Network</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- Network.luau
+-- Centralizes RemoteEvents and RemoteFunctions so server and client never desync.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Network = {}
+
+local REMOTE_EVENTS = {
+	"BallStateUpdate",     -- Server -> Clients: authoritative ball pos/vel/spin/owner
+	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick
+	"DribbleToggle",       -- Client -> Server: Request close control or release
+	"TackleRequest",       -- Client -> Server: Slide tackle / steal attempt
+	"GKDiveRequest",       -- Client -> Server: Goalkeeper dive direction
+	"MatchStateUpdate",    -- Server -> Clients: timer, scores, phase, mode, set-piece info
+	"GoalScoredVFX",       -- Server -> Clients: goal banner, net ripple, scorer info
+	"CelebrationTrigger",  -- Client <-> Server: trigger equipped celebration
+	"TrophyCeremonyStart", -- Server -> Clients: confetti & trophy lift FX
+	"VoteMatchMode",       -- Client -> Server: vote 5v5 or 11v11
+	"EquipItem",           -- Client -> Server: equip kit / celebration / formation
+	"PurchaseItem",        -- Client -> Server: buy kit / celebration
+	"UpdateClubName",      -- Client -> Server: set custom club name
+	"ProfileUpdated",      -- Server -> Client: sync player profile & coins/ELO
+}
+
+local REMOTE_FUNCTIONS = {
+	"GetProfile",          -- Client -> Server: fetch initial player data
+	"GetLeaderboards",     -- Client -> Server: fetch global top scorers, ELO, wins
+}
+
+local function getOrCreateFolder(): Folder
+	local existing = ReplicatedStorage:FindFirstChild("Remotes")
+	if existing and existing:IsA("Folder") then
+		return existing
+	end
+	if RunService:IsServer() then
+		local folder = Instance.new("Folder")
+		folder.Name = "Remotes"
+		folder.Parent = ReplicatedStorage
+		return folder
+	else
+		return ReplicatedStorage:WaitForChild("Remotes") :: Folder
+	end
+end
+
+function Network.InitServer()
+	local folder = getOrCreateFolder()
+	for _, name in ipairs(REMOTE_EVENTS) do
+		if not folder:FindFirstChild(name) then
+			local ev = Instance.new("RemoteEvent")
+			ev.Name = name
+			ev.Parent = folder
+		end
+	end
+	for _, name in ipairs(REMOTE_FUNCTIONS) do
+		if not folder:FindFirstChild(name) then
+			local fn = Instance.new("RemoteFunction")
+			fn.Name = name
+			fn.Parent = folder
+		end
+	end
+end
+
+function Network.GetEvent(name: string): RemoteEvent
+	local folder = getOrCreateFolder()
+	local ev = folder:WaitForChild(name, 15)
+	assert(ev and ev:IsA("RemoteEvent"), "Missing RemoteEvent: " .. name)
+	return ev :: RemoteEvent
+end
+
+function Network.GetFunction(name: string): RemoteFunction
+	local folder = getOrCreateFolder()
+	local fn = folder:WaitForChild(name, 15)
+	assert(fn and fn:IsA("RemoteFunction"), "Missing RemoteFunction: " .. name)
+	return fn :: RemoteFunction
+end
+
+return Network
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="RBX000018">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="ModuleScript" referent="RBX000005">
+      <Properties>
+        <string name="Name">BallManager</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- BallManager.luau
+-- Server-authoritative soccer ball simulation, dribbling, kicks, saves, tackles, and goal/OOB detection.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
+local Config = require(ReplicatedStorage.Shared.Config)
+local Network = require(ReplicatedStorage.Shared.Network)
+
+local BallManager = {}
+
+local ballPart: Part? = nil
+local ballState: BallPhysics.BallState = {
+	Position = Vector3.new(0, Config.Ball.Radius, 0),
+	Velocity = Vector3.zero,
+	Spin = Vector3.zero,
+}
+
+local currentMode: Config.MatchMode = Config.DefaultMode
+local matchPlaying = false
+local ballFrozen = false
+
+local ownerPlayer: Player? = nil
+local lastTouchPlayer: Player? = nil
+local previousTouchPlayer: Player? = nil
+local stealCooldowns: { [number]: number } = {}
+local divingPlayers: { [number]: number } = {}
+
+local onGoalCallback: ((scoringTeam: "Home" | "Away", scorer: Player?, assister: Player?) -> ())? = nil
+local onSaveCallback: ((keeper: Player) -> ())? = nil
+local onSetPieceCallback: ((kind: string, spot: Vector3, team: "Home" | "Away") -> ())? = nil
+
+local function ensureBallPart(): Part
+	if ballPart and ballPart.Parent then
+		return ballPart
+	end
+	local existing = Workspace:FindFirstChild("SoccerBall")
+	if existing and existing:IsA("Part") then
+		ballPart = existing
+		return existing
+	end
+
+	local p = Instance.new("Part")
+	p.Name = "SoccerBall"
+	p.Shape = Enum.PartType.Ball
+	p.Size = Vector3.one * (Config.Ball.Radius * 2)
+	p.Color = Color3.fromRGB(248, 250, 252)
+	p.Material = Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.CanCollide = false
+	p.CastShadow = true
+
+	-- Subtle match-ball stripe accent
+	local highlight = Instance.new("Highlight")
+	highlight.FillTransparency = 1
+	highlight.OutlineColor = Color3.fromRGB(250, 204, 21)
+	highlight.OutlineTransparency = 0.65
+	highlight.Parent = p
+
+	p.Parent = Workspace
+	ballPart = p
+	return p
+end
+
+function BallManager.ResetToSpot(pos: Vector3, freeze: boolean)
+	ownerPlayer = nil
+	ballState = {
+		Position = Vector3.new(pos.X, Config.Ball.Radius, pos.Z),
+		Velocity = Vector3.zero,
+		Spin = Vector3.zero,
+	}
+	ballFrozen = freeze
+	local bp = ensureBallPart()
+	bp.CFrame = CFrame.new(ballState.Position)
+end
+
+function BallManager.SetMatchActive(active: boolean, mode: Config.MatchMode)
+	matchPlaying = active
+	currentMode = mode
+	if not active then
+		ballFrozen = false
+	end
+end
+
+function BallManager.GetBallPosition(): Vector3
+	return ballState.Position
+end
+
+local function recordTouch(player: Player)
+	if lastTouchPlayer ~= player then
+		previousTouchPlayer = lastTouchPlayer
+		lastTouchPlayer = player
+	end
+end
+
+local function isInPenaltyBox(pos: Vector3, halfL: number): boolean
+	local inZ = math.abs(pos.Z) >= (halfL - Config.Kicks.GKBoxDepth) and math.abs(pos.Z) <= halfL + 4
+	local inX = math.abs(pos.X) <= (Config.Kicks.GKBoxWidth * 0.5)
+	return inZ and inX
+end
+
+local function broadcastState()
+	Network.GetEvent("BallStateUpdate"):FireAllClients(
+		ballState.Position,
+		ballState.Velocity,
+		ballState.Spin,
+		if ownerPlayer then ownerPlayer.UserId else 0
+	)
+end
+
+function BallManager.Init(
+	onGoal: (scoringTeam: "Home" | "Away", scorer: Player?, assister: Player?) -> (),
+	onSave: (keeper: Player) -> (),
+	onSetPiece: (kind: string, spot: Vector3, team: "Home" | "Away") -> ()
+)
+	onGoalCallback = onGoal
+	onSaveCallback = onSave
+	onSetPieceCallback = onSetPiece
+
+	ensureBallPart()
+	BallManager.ResetToSpot(Vector3.zero, false)
+
+	-- Kick / Pass / Through-Ball / Curving Free Kick
+	Network.GetEvent("KickRequest").OnServerEvent:Connect(
+		function(player: Player, kickType: string, direction: Vector3, powerRatio: number, curveAmount: number)
+			if typeof(direction) ~= "Vector3" or type(powerRatio) ~= "number" or type(curveAmount) ~= "number" then
+				return
+			end
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if not hrp then
+				return
+			end
+
+			local dist = (hrp.Position - ballState.Position).Magnitude
+			if ownerPlayer ~= player and dist > 11 then
+				return
+			end
+
+			local dir = direction.Magnitude > 0.01 and direction.Unit or hrp.CFrame.LookVector
+			local pwr = math.clamp(powerRatio, 0.1, 1)
+			local curve = math.clamp(curveAmount, -1, 1)
+
+			local speed = Config.Kicks.MinPower
+			local loft = 0.18
+			if kickType == "Shoot" or kickType == "FreeKick" then
+				speed = Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr
+				loft = 0.22 + 0.18 * pwr
+			elseif kickType == "Lob" then
+				speed = Config.Kicks.MinPower + (Config.Kicks.MaxLobPower - Config.Kicks.MinPower) * pwr
+				loft = 0.55 + 0.2 * pwr
+			elseif kickType == "ThroughBall" then
+				speed = Config.Kicks.MinPower + (Config.Kicks.MaxThroughBallPower - Config.Kicks.MinPower) * pwr
+				loft = 0.08
+			else -- Pass
+				speed = Config.Kicks.MinPower + (Config.Kicks.MaxPassPower - Config.Kicks.MinPower) * pwr
+				loft = 0.06
+			end
+
+			local launchDir = Vector3.new(dir.X, loft, dir.Z).Unit
+			ballState.Velocity = launchDir * speed
+			-- Vertical spin axis produces horizontal Magnus curve
+			ballState.Spin = Vector3.new(0, curve * Config.Kicks.MaxSpin * (0.4 + 0.6 * pwr), 0)
+
+			ownerPlayer = nil
+			ballFrozen = false
+			stealCooldowns[player.UserId] = os.clock() + 0.35
+			recordTouch(player)
+			broadcastState()
+		end
+	)
+
+	-- Dribble release / toggle
+	Network.GetEvent("DribbleToggle").OnServerEvent:Connect(function(player: Player)
+		if ownerPlayer == player then
+			ownerPlayer = nil
+			stealCooldowns[player.UserId] = os.clock() + 0.4
+			ballState.Velocity = Vector3.new(ballState.Velocity.X, 0, ballState.Velocity.Z) * 0.5
+		end
+	end)
+
+	-- Slide Tackle / Steal
+	Network.GetEvent("TackleRequest").OnServerEvent:Connect(function(player: Player)
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not hrp then
+			return
+		end
+		if (hrp.Position - ballState.Position).Magnitude <= Config.Kicks.TackleRange then
+			if ownerPlayer and ownerPlayer ~= player then
+				stealCooldowns[ownerPlayer.UserId] = os.clock() + Config.Ball.StealCooldown
+			end
+			ownerPlayer = nil
+			ballFrozen = false
+			local pushDir = Vector3.new(hrp.CFrame.LookVector.X, 0.15, hrp.CFrame.LookVector.Z).Unit
+			ballState.Velocity = pushDir * 42
+			ballState.Spin = Vector3.zero
+			recordTouch(player)
+			broadcastState()
+		end
+	end)
+
+	-- Goalkeeper Dive
+	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, diveDir: Vector3)
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not hrp then
+			return
+		end
+		local modeCfg = Config.MatchModes[currentMode]
+		if isInPenaltyBox(hrp.Position, modeCfg.PitchLength * 0.5) then
+			divingPlayers[player.UserId] = os.clock() + 0.65
+		end
+	end)
+
+	-- Main Physics Loop
+	local broadcastAccum = 0
+	RunService.Heartbeat:Connect(function(dt: number)
+		local stepDt = math.min(dt, 0.05)
+		local modeCfg = Config.MatchModes[currentMode]
+		local halfL = modeCfg.PitchLength * 0.5
+		local halfW = modeCfg.PitchWidth * 0.5
+		local now = os.clock()
+
+		if not ballFrozen then
+			-- 1. Handle Dribble Ownership
+			if ownerPlayer then
+				local char = ownerPlayer.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				if not hrp or not hum or hum.Health <= 0 then
+					ownerPlayer = nil
+				else
+					local targetPos = hrp.Position + hrp.CFrame.LookVector * Config.Ball.DribbleDistance
+					targetPos = Vector3.new(targetPos.X, Config.Ball.Radius, targetPos.Z)
+					ballState.Position = ballState.Position:Lerp(targetPos, math.clamp(stepDt * 18, 0, 1))
+					ballState.Velocity = hrp.AssemblyLinearVelocity
+					ballState.Spin = Vector3.zero
+				end
+			else
+				-- 2. Free Ball Physics
+				ballState = BallPhysics.Step(ballState, stepDt, halfL, halfW)
+
+				-- 3. Check Goalkeeper Diving Saves & Player Pickups
+				for _, player in ipairs(Players:GetPlayers()) do
+					local char = player.Character
+					local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					if hrp and hum and hum.Health > 0 then
+						local dist = (hrp.Position - ballState.Position).Magnitude
+
+						-- Diving GK save check
+						if divingPlayers[player.UserId] and now < divingPlayers[player.UserId] and dist <= 7.2 then
+							if ballState.Velocity.Magnitude > 22 then
+								divingPlayers[player.UserId] = nil
+								local deflectDir = Vector3.new(hrp.CFrame.LookVector.X, 0.25, hrp.CFrame.LookVector.Z).Unit
+								ballState.Velocity = deflectDir * 36
+								ballState.Spin = Vector3.zero
+								recordTouch(player)
+								if onSaveCallback then
+									onSaveCallback(player)
+								end
+								break
+							end
+						end
+
+						-- Loose ball dribble pickup
+						local cd = stealCooldowns[player.UserId] or 0
+						if now > cd and dist <= Config.Ball.DribbleSnapRange and ballState.Position.Y <= 4.0 and ballState.Velocity.Magnitude < 55 then
+							ownerPlayer = player
+							recordTouch(player)
+							break
+						end
+					end
+				end
+			end
+
+			-- 4. Goal & Out-of-Bounds Detection (only when match is actively playing)
+			if matchPlaying then
+				local p = ballState.Position
+				local halfGoalW = modeCfg.GoalWidth * 0.5
+
+				-- Home Goal at -halfL (Away scores!)
+				if p.Z <= -halfL - Config.Ball.Radius * 0.5 and math.abs(p.X) <= halfGoalW and p.Y <= modeCfg.GoalHeight then
+					matchPlaying = false
+					ballFrozen = true
+					local assister = if previousTouchPlayer and lastTouchPlayer and previousTouchPlayer.Team == lastTouchPlayer.Team then previousTouchPlayer else nil
+					if onGoalCallback then
+						onGoalCallback("Away", lastTouchPlayer, assister)
+					end
+				-- Away Goal at +halfL (Home scores!)
+				elseif p.Z >= halfL + Config.Ball.Radius * 0.5 and math.abs(p.X) <= halfGoalW and p.Y <= modeCfg.GoalHeight then
+					matchPlaying = false
+					ballFrozen = true
+					local assister = if previousTouchPlayer and lastTouchPlayer and previousTouchPlayer.Team == lastTouchPlayer.Team then previousTouchPlayer else nil
+					if onGoalCallback then
+						onGoalCallback("Home", lastTouchPlayer, assister)
+					end
+				-- Touchline Out-of-Bounds (Throw-in)
+				elseif math.abs(p.X) > halfW + 1.5 then
+					ownerPlayer = nil
+					local clampedZ = math.clamp(p.Z, -halfL + 5, halfL - 5)
+					local spot = Vector3.new(math.sign(p.X) * (halfW - 1.5), Config.Ball.Radius, clampedZ)
+					local kickingTeam: "Home" | "Away" = if lastTouchPlayer and lastTouchPlayer.Team and lastTouchPlayer.Team.Name == "Home FC" then "Away" else "Home"
+					BallManager.ResetToSpot(spot, false)
+					if onSetPieceCallback then
+						onSetPieceCallback("Throw-In", spot, kickingTeam)
+					end
+				-- Endline Out-of-Bounds (Corner or Goal Kick)
+				elseif math.abs(p.Z) > halfL + 2.0 and math.abs(p.X) > halfGoalW then
+					ownerPlayer = nil
+					local endSign = math.sign(p.Z)
+					local spot = Vector3.new(math.sign(p.X) * (halfW - 2), Config.Ball.Radius, endSign * (halfL - 2))
+					local kickingTeam: "Home" | "Away" = if endSign < 0 then "Home" else "Away"
+					BallManager.ResetToSpot(spot, false)
+					if onSetPieceCallback then
+						onSetPieceCallback("Corner / Goal Kick", spot, kickingTeam)
+					end
+				end
+			end
+		end
+
+		-- Update physical part
+		local bp = ensureBallPart()
+		local speed = ballState.Velocity.Magnitude
+		if speed > 0.5 then
+			local rollAxis = Vector3.new(ballState.Velocity.Z, 0, -ballState.Velocity.X)
+			if rollAxis.Magnitude > 0.01 then
+				bp.CFrame = CFrame.new(ballState.Position) * (bp.CFrame.Rotation * CFrame.fromAxisAngle(rollAxis.Unit, speed * stepDt / Config.Ball.Radius))
+			else
+				bp.CFrame = CFrame.new(ballState.Position) * bp.CFrame.Rotation
+			end
+		else
+			bp.CFrame = CFrame.new(ballState.Position) * bp.CFrame.Rotation
+		end
+
+		broadcastAccum += stepDt
+		if broadcastAccum >= 0.05 then
+			broadcastAccum = 0
+			broadcastState()
+		end
+	end)
+end
+
+return BallManager
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000006">
+      <Properties>
+        <string name="Name">DataService</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- DataService.luau
+-- Manages player profiles, Dream Squad/Club settings, Custom Kits, Celebrations, and Global Leaderboards.
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Catalog = require(ReplicatedStorage.Shared.Catalog)
+local Config = require(ReplicatedStorage.Shared.Config)
+local Network = require(ReplicatedStorage.Shared.Network)
+
+local DataService = {}
+
+export type PlayerProfile = {
+	Coins: number,
+	Goals: number,
+	Assists: number,
+	Saves: number,
+	Wins: number,
+	Matches: number,
+	ELO: number,
+	ClubName: string,
+	Formation: string,
+	EquippedKit: string,
+	EquippedCelebration: string,
+	UnlockedKits: { [string]: boolean },
+	UnlockedCelebrations: { [string]: boolean },
+}
+
+local profiles: { [number]: PlayerProfile } = {}
+local profileStore: DataStore? = nil
+local goalsLB: OrderedDataStore? = nil
+local eloLB: OrderedDataStore? = nil
+local winsLB: OrderedDataStore? = nil
+
+local function defaultProfile(player: Player): PlayerProfile
+	return {
+		Coins = 200,
+		Goals = 0,
+		Assists = 0,
+		Saves = 0,
+		Wins = 0,
+		Matches = 0,
+		ELO = 1000,
+		ClubName = player.DisplayName .. " FC",
+		Formation = Catalog.Formations[1],
+		EquippedKit = "classic_striker",
+		EquippedCelebration = "knee_slide",
+		UnlockedKits = { classic_striker = true },
+		UnlockedCelebrations = { knee_slide = true },
+	}
+end
+
+local function safePcall<T>(fn: () -> T): (boolean, T?)
+	local ok, res = pcall(fn)
+	return ok, if ok then res else nil
+end
+
+local function loadProfile(player: Player): PlayerProfile
+	local prof = defaultProfile(player)
+	if profileStore then
+		local ok, saved = safePcall(function()
+			return (profileStore :: DataStore):GetAsync("Player_" .. player.UserId)
+		end)
+		if ok and type(saved) == "table" then
+			for k, v in pairs(saved) do
+				(prof :: any)[k] = v
+			end
+		end
+	end
+	profiles[player.UserId] = prof
+	return prof
+end
+
+local function saveProfile(player: Player)
+	local prof = profiles[player.UserId]
+	if not prof then
+		return
+	end
+	if profileStore then
+		pcall(function()
+			(profileStore :: DataStore):SetAsync("Player_" .. player.UserId, prof)
+		end)
+	end
+	if goalsLB then
+		pcall(function()
+			(goalsLB :: OrderedDataStore):SetAsync(tostring(player.UserId), math.floor(prof.Goals))
+		end)
+	end
+	if eloLB then
+		pcall(function()
+			(eloLB :: OrderedDataStore):SetAsync(tostring(player.UserId), math.floor(prof.ELO))
+		end)
+	end
+	if winsLB then
+		pcall(function()
+			(winsLB :: OrderedDataStore):SetAsync(tostring(player.UserId), math.floor(prof.Wins))
+		end)
+	end
+end
+
+local function syncToClient(player: Player)
+	local prof = profiles[player.UserId]
+	if prof then
+		Network.GetEvent("ProfileUpdated"):FireClient(player, prof)
+	end
+end
+
+function DataService.GetProfile(player: Player): PlayerProfile
+	return profiles[player.UserId] or loadProfile(player)
+end
+
+function DataService.AwardGoal(player: Player)
+	local prof = DataService.GetProfile(player)
+	prof.Goals += 1
+	prof.Coins += Config.Rewards.GoalCoins
+	syncToClient(player)
+end
+
+function DataService.AwardAssist(player: Player)
+	local prof = DataService.GetProfile(player)
+	prof.Assists += 1
+	prof.Coins += Config.Rewards.AssistCoins
+	syncToClient(player)
+end
+
+function DataService.AwardSave(player: Player)
+	local prof = DataService.GetProfile(player)
+	prof.Saves += 1
+	prof.Coins += Config.Rewards.SaveCoins
+	syncToClient(player)
+end
+
+function DataService.RecordMatchResult(player: Player, won: boolean)
+	local prof = DataService.GetProfile(player)
+	prof.Matches += 1
+	if won then
+		prof.Wins += 1
+		prof.Coins += Config.Rewards.WinCoins
+		prof.ELO = math.max(100, prof.ELO + Config.Rewards.WinELO)
+	else
+		prof.Coins += Config.Rewards.LossCoins
+		prof.ELO = math.max(100, prof.ELO + Config.Rewards.LossELO)
+	end
+	syncToClient(player)
+	task.spawn(saveProfile, player)
+end
+
+local function fetchLeaderboard(store: OrderedDataStore?, statKey: string): { { Name: string, Value: number, Club: string } }
+	local entries = {}
+	if store then
+		local ok, pages = safePcall(function()
+			return store:GetSortedAsync(false, 10)
+		end)
+		if ok and pages then
+			local page = pages:GetCurrentPage()
+			for _, item in ipairs(page) do
+				local uid = tonumber(item.key)
+				local name = "Player " .. tostring(item.key)
+				if uid then
+					local okName, resolved = pcall(function()
+						return Players:GetNameFromUserIdAsync(uid)
+					end)
+					if okName and resolved then
+						name = resolved
+					end
+				end
+				table.insert(entries, {
+					Name = name,
+					Value = item.value,
+					Club = "Club",
+				})
+			end
+		end
+	end
+
+	-- Fallback/merge with active server players if DataStore is unavailable (e.g. Studio)
+	if #entries == 0 then
+		for _, p in ipairs(Players:GetPlayers()) do
+			local prof = DataService.GetProfile(p)
+			local val = (prof :: any)[statKey] or 0
+			table.insert(entries, {
+				Name = p.DisplayName,
+				Value = val,
+				Club = prof.ClubName,
+			})
+		end
+		table.sort(entries, function(a, b)
+			return a.Value > b.Value
+		end)
+	end
+
+	return entries
+end
+
+function DataService.Init(onKitChanged: ((Player) -> ())?)
+	pcall(function()
+		profileStore = DataStoreService:GetDataStore("MapleviewSoccer_Profiles_v1")
+		goalsLB = DataStoreService:GetOrderedDataStore("MapleviewSoccer_GoalsLB_v1")
+		eloLB = DataStoreService:GetOrderedDataStore("MapleviewSoccer_ELOLB_v1")
+		winsLB = DataStoreService:GetOrderedDataStore("MapleviewSoccer_WinsLB_v1")
+	end)
+
+	Players.PlayerAdded:Connect(function(player)
+		loadProfile(player)
+		syncToClient(player)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		saveProfile(player)
+		profiles[player.UserId] = nil
+	end)
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		loadProfile(player)
+	end
+
+	Network.GetFunction("GetProfile").OnServerInvoke = function(player)
+		return DataService.GetProfile(player)
+	end
+
+	Network.GetFunction("GetLeaderboards").OnServerInvoke = function(_player)
+		return {
+			Goals = fetchLeaderboard(goalsLB, "Goals"),
+			ELO = fetchLeaderboard(eloLB, "ELO"),
+			Wins = fetchLeaderboard(winsLB, "Wins"),
+		}
+	end
+
+	Network.GetEvent("PurchaseItem").OnServerEvent:Connect(function(player, category: string, itemId: string)
+		local prof = DataService.GetProfile(player)
+		if category == "Kit" then
+			local kit = Catalog.GetKit(itemId)
+			if kit and not prof.UnlockedKits[itemId] and prof.Coins >= kit.Price then
+				prof.Coins -= kit.Price
+				prof.UnlockedKits[itemId] = true
+				prof.EquippedKit = itemId
+				syncToClient(player)
+				if onKitChanged then
+					onKitChanged(player)
+				end
+			end
+		elseif category == "Celebration" then
+			local cel = Catalog.GetCelebration(itemId)
+			if cel and not prof.UnlockedCelebrations[itemId] and prof.Coins >= cel.Price then
+				prof.Coins -= cel.Price
+				prof.UnlockedCelebrations[itemId] = true
+				prof.EquippedCelebration = itemId
+				syncToClient(player)
+			end
+		end
+	end)
+
+	Network.GetEvent("EquipItem").OnServerEvent:Connect(function(player, category: string, itemId: string)
+		local prof = DataService.GetProfile(player)
+		if category == "Kit" and prof.UnlockedKits[itemId] then
+			prof.EquippedKit = itemId
+			syncToClient(player)
+			if onKitChanged then
+				onKitChanged(player)
+			end
+		elseif category == "Celebration" and prof.UnlockedCelebrations[itemId] then
+			prof.EquippedCelebration = itemId
+			syncToClient(player)
+		elseif category == "Formation" then
+			for _, f in ipairs(Catalog.Formations) do
+				if f == itemId then
+					prof.Formation = itemId
+					syncToClient(player)
+					break
+				end
+			end
+		end
+	end)
+
+	Network.GetEvent("UpdateClubName").OnServerEvent:Connect(function(player, newName: string)
+		if type(newName) ~= "string" then
+			return
+		end
+		local trimmed = string.sub(newName:gsub("^%s*(.-)%s*$", "%1"), 1, 20)
+		if #trimmed >= 2 then
+			local prof = DataService.GetProfile(player)
+			prof.ClubName = trimmed
+			syncToClient(player)
+		end
+	end)
+end
+
+return DataService
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000007">
+      <Properties>
+        <string name="Name">KitAndCelebrationService</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- KitAndCelebrationService.luau
+-- Applies custom kits to player characters and executes procedural goal celebrations.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Catalog = require(ReplicatedStorage.Shared.Catalog)
+local Network = require(ReplicatedStorage.Shared.Network)
+
+local KitAndCelebrationService = {}
+
+local getProfileFn: ((Player) -> any)? = nil
+
+function KitAndCelebrationService.ApplyKit(player: Player)
+	local character = player.Character
+	if not character or not getProfileFn then
+		return
+	end
+	local prof = getProfileFn(player)
+	local kit = Catalog.GetKit(prof.EquippedKit) or Catalog.Kits[1]
+
+	-- Determine team tint for shorts/trim if on a team
+	local teamAccent = kit.Secondary
+	if player.Team then
+		teamAccent = player.Team.TeamColor.Color
+	end
+
+	-- Remove existing Shirt/Pants so kit colors show crisply on any rig
+	for _, child in ipairs(character:GetChildren()) do
+		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
+			child:Destroy()
+		end
+	end
+
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			local n = part.Name
+			if n == "Torso" or n == "UpperTorso" or n == "LowerTorso" then
+				part.Color = kit.Primary
+			elseif string.find(n, "Arm") or string.find(n, "Hand") then
+				-- Keep sleeves matching primary kit
+				if string.find(n, "UpperArm") then
+					part.Color = kit.Primary
+				end
+			elseif string.find(n, "Leg") or n == "LeftUpperLeg" or n == "RightUpperLeg" then
+				part.Color = kit.Secondary
+			elseif string.find(n, "Foot") then
+				part.Color = kit.Accent
+			end
+		end
+	end
+
+	-- Overhead Club & Kit Nameplate
+	local head = character:FindFirstChild("Head")
+	if head and head:IsA("BasePart") then
+		local old = head:FindFirstChild("PlayerTag")
+		if old then
+			old:Destroy()
+		end
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "PlayerTag"
+		bb.Size = UDim2.fromOffset(160, 44)
+		bb.StudsOffset = Vector3.new(0, 2.8, 0)
+		bb.AlwaysOnTop = true
+		bb.MaxDistance = 90
+		bb.Parent = head
+
+		local nameLbl = Instance.new("TextLabel")
+		nameLbl.Size = UDim2.new(1, 0, 0.55, 0)
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.Text = player.DisplayName
+		nameLbl.TextColor3 = Color3.new(1, 1, 1)
+		nameLbl.TextStrokeTransparency = 0.25
+		nameLbl.Font = Enum.Font.GothamBold
+		nameLbl.TextScaled = true
+		nameLbl.Parent = bb
+
+		local clubLbl = Instance.new("TextLabel")
+		clubLbl.Size = UDim2.new(1, 0, 0.45, 0)
+		clubLbl.Position = UDim2.fromScale(0, 0.55)
+		clubLbl.BackgroundTransparency = 1
+		clubLbl.Text = string.upper(prof.ClubName or "CLUB")
+		clubLbl.TextColor3 = teamAccent
+		clubLbl.TextStrokeTransparency = 0.35
+		clubLbl.Font = Enum.Font.GothamSemibold
+		clubLbl.TextScaled = true
+		clubLbl.Parent = bb
+	end
+end
+
+function KitAndCelebrationService.PlayCelebration(player: Player)
+	local character = player.Character
+	if not character or not getProfileFn then
+		return
+	end
+	local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not hrp or not humanoid then
+		return
+	end
+
+	local prof = getProfileFn(player)
+	local celId = prof.EquippedCelebration or "knee_slide"
+
+	-- Broadcast celebration VFX to all clients
+	Network.GetEvent("CelebrationTrigger"):FireAllClients(player, celId)
+
+	task.spawn(function()
+		if celId == "knee_slide" then
+			local forward = hrp.CFrame.LookVector
+			hrp.AssemblyLinearVelocity = forward * 52 + Vector3.new(0, 8, 0)
+			humanoid.Sit = true
+			task.wait(1.6)
+			humanoid.Sit = false
+		elseif celId == "siuuu_leap" then
+			hrp.AssemblyLinearVelocity = Vector3.new(0, 46, 0) + hrp.CFrame.LookVector * 12
+			local startCF = hrp.CFrame
+			for i = 1, 12 do
+				task.wait(0.04)
+				if hrp.Parent then
+					hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(15), 0)
+				end
+			end
+			task.wait(0.3)
+			if hrp.Parent then
+				hrp.CFrame = CFrame.new(hrp.Position) * startCF.Rotation * CFrame.Angles(0, math.pi, 0)
+			end
+		elseif celId == "backflip" then
+			hrp.AssemblyLinearVelocity = Vector3.new(0, 52, 0) - hrp.CFrame.LookVector * 8
+			for i = 1, 18 do
+				task.wait(0.035)
+				if hrp.Parent then
+					hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(20), 0, 0)
+				end
+			end
+		elseif celId == "trophy_lift" then
+			-- Spawn a temporary golden mini-cup above player's hands
+			local cup = Instance.new("Part")
+			cup.Name = "CelebrationCup"
+			cup.Shape = Enum.PartType.Cylinder
+			cup.Size = Vector3.new(2.4, 1.4, 1.4)
+			cup.Color = Color3.fromRGB(250, 204, 21)
+			cup.Material = Enum.Material.Neon
+			cup.CanCollide = false
+			cup.Anchored = true
+			cup.Parent = workspace
+
+			local t0 = os.clock()
+			while os.clock() - t0 < 2.5 and hrp.Parent do
+				cup.CFrame = CFrame.new(hrp.Position + Vector3.new(0, 4.5 + math.sin(os.clock() * 6) * 0.3, 0))
+					* CFrame.Angles(0, os.clock() * 3, math.rad(90))
+				task.wait()
+			end
+			cup:Destroy()
+		end
+	end)
+end
+
+function KitAndCelebrationService.Init(profileGetter: (Player) -> any)
+	getProfileFn = profileGetter
+
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function()
+			task.wait(0.15)
+			KitAndCelebrationService.ApplyKit(player)
+		end)
+	end)
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player.Character then
+			task.spawn(KitAndCelebrationService.ApplyKit, player)
+		end
+	end
+
+	Network.GetEvent("CelebrationTrigger").OnServerEvent:Connect(function(player)
+		KitAndCelebrationService.PlayCelebration(player)
+	end)
+end
+
+return KitAndCelebrationService
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="Script" referent="RBX000008">
+      <Properties>
+        <string name="Name">MatchManager</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- MatchManager.server.luau
+-- Orchestrates teams, 5v5 / 11v11 match modes, match clock, goals, set pieces, and the championship trophy ceremony.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Teams = game:GetService("Teams")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local Network = require(ReplicatedStorage.Shared.Network)
+
+local BallManager = require(script.Parent.BallManager)
+local DataService = require(script.Parent.DataService)
+local KitAndCelebrationService = require(script.Parent.KitAndCelebrationService)
+local StadiumBuilder = require(script.Parent.StadiumBuilder)
+
+-- 1. Initialize Remotes & Teams
+Network.InitServer()
+
+local function getOrCreateTeam(name: string, color: BrickColor): Team
+	local existing = Teams:FindFirstChild(name)
+	if existing and existing:IsA("Team") then
+		return existing
+	end
+	local t = Instance.new("Team")
+	t.Name = name
+	t.TeamColor = color
+	t.AutoAssignable = false
+	t.Parent = Teams
+	return t
+end
+
+local homeTeam = getOrCreateTeam(Config.Teams.Home.Name, Config.Teams.Home.Color)
+local awayTeam = getOrCreateTeam(Config.Teams.Away.Name, Config.Teams.Away.Color)
+
+-- 2. Initialize Services
+DataService.Init(function(player)
+	KitAndCelebrationService.ApplyKit(player)
+end)
+KitAndCelebrationService.Init(DataService.GetProfile)
+
+-- 3. Match State
+local currentMode: Config.MatchMode = Config.DefaultMode
+local modeVotes: { [number]: Config.MatchMode } = {}
+
+local matchPhase = "Intermission"
+local halfNumber = 1
+local timeRemaining = Config.IntermissionSeconds
+local homeScore = 0
+local awayScore = 0
+local statusBanner = "Warmup — Next Match Starting Soon"
+local goalScoredFlag = false
+
+local function assignTeamBalanced(player: Player)
+	local homeCount = #homeTeam:GetPlayers()
+	local awayCount = #awayTeam:GetPlayers()
+	player.Team = if homeCount <= awayCount then homeTeam else awayTeam
+end
+
+Players.PlayerAdded:Connect(function(player)
+	assignTeamBalanced(player)
+	player.CharacterAdded:Connect(function()
+		task.wait(0.1)
+		KitAndCelebrationService.ApplyKit(player)
+	end)
+end)
+
+for _, p in ipairs(Players:GetPlayers()) do
+	if not p.Team then
+		assignTeamBalanced(p)
+	end
+end
+
+-- Mode voting
+Network.GetEvent("VoteMatchMode").OnServerEvent:Connect(function(player: Player, mode: string)
+	if mode == "5v5" or mode == "11v11" then
+		modeVotes[player.UserId] = mode :: Config.MatchMode
+	end
+end)
+
+local function resolveModeVote(): Config.MatchMode
+	local v5, v11 = 0, 0
+	for _, m in pairs(modeVotes) do
+		if m == "5v5" then
+			v5 += 1
+		else
+			v11 += 1
+		end
+	end
+	if v11 > v5 then
+		return "11v11"
+	end
+	return "5v5"
+end
+
+local function broadcastMatchState()
+	Network.GetEvent("MatchStateUpdate"):FireAllClients({
+		Phase = matchPhase,
+		Half = halfNumber,
+		TimeRemaining = math.max(0, math.floor(timeRemaining)),
+		HomeScore = homeScore,
+		AwayScore = awayScore,
+		Mode = currentMode,
+		Status = statusBanner,
+	})
+end
+
+local function positionPlayersForKickoff()
+	local halfL = Config.MatchModes[currentMode].PitchLength * 0.5
+	local homeIdx, awayIdx = 0, 0
+	for _, player in ipairs(Players:GetPlayers()) do
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			if player.Team == homeTeam then
+				homeIdx += 1
+				local offsetX = ((homeIdx - 1) % 3 - 1) * 14
+				local offsetZ = -18 - math.floor((homeIdx - 1) / 3) * 18
+				hrp.CFrame = CFrame.lookAt(Vector3.new(offsetX, 3.5, math.max(offsetZ, -halfL + 10)), Vector3.new(0, 3.5, 0))
+			else
+				awayIdx += 1
+				local offsetX = ((awayIdx - 1) % 3 - 1) * 14
+				local offsetZ = 18 + math.floor((awayIdx - 1) / 3) * 18
+				hrp.CFrame = CFrame.lookAt(Vector3.new(offsetX, 3.5, math.min(offsetZ, halfL - 10)), Vector3.new(0, 3.5, 0))
+			end
+			hrp.AssemblyLinearVelocity = Vector3.zero
+		end
+	end
+end
+
+local function spawnChampionshipTrophy(winningTeamName: string)
+	local old = Workspace:FindFirstChild("ChampionshipTrophy")
+	if old then
+		old:Destroy()
+	end
+
+	local model = Instance.new("Model")
+	model.Name = "ChampionshipTrophy"
+
+	local pedestal = Instance.new("Part")
+	pedestal.Name = "Pedestal"
+	pedestal.Size = Vector3.new(6, 2.5, 6)
+	pedestal.Position = Vector3.new(0, 1.25, 0)
+	pedestal.Color = Color3.fromRGB(15, 23, 42)
+	pedestal.Material = Enum.Material.Marble
+	pedestal.Anchored = true
+	pedestal.Parent = model
+
+	local cup = Instance.new("Part")
+	cup.Name = "GoldenCup"
+	cup.Shape = Enum.PartType.Cylinder
+	cup.Size = Vector3.new(5.5, 3.6, 3.6)
+	cup.CFrame = CFrame.new(0, 5.2, 0) * CFrame.Angles(0, 0, math.rad(90))
+	cup.Color = Color3.fromRGB(250, 204, 21)
+	cup.Material = Enum.Material.Metal
+	cup.Reflectance = 0.45
+	cup.Anchored = true
+	cup.Parent = model
+
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(240, 60)
+	bb.StudsOffset = Vector3.new(0, 5, 0)
+	bb.AlwaysOnTop = true
+	bb.Parent = cup
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "CHAMPIONS: " .. string.upper(winningTeamName)
+	lbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+	lbl.TextStrokeTransparency = 0.2
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.Parent = bb
+
+	model.Parent = Workspace
+end
+
+-- Build initial stadium & init BallManager
+StadiumBuilder.Build(currentMode)
+
+BallManager.Init(
+	-- On Goal Scored
+	function(scoringTeam, scorer, assister)
+		if goalScoredFlag or matchPhase ~= "Playing" then
+			return
+		end
+		goalScoredFlag = true
+		if scoringTeam == "Home" then
+			homeScore += 1
+		else
+			awayScore += 1
+		end
+
+		if scorer then
+			DataService.AwardGoal(scorer)
+			KitAndCelebrationService.PlayCelebration(scorer)
+		end
+		if assister and assister ~= scorer then
+			DataService.AwardAssist(assister)
+		end
+
+		statusBanner = string.format(
+			"GOAL! %s (%s)",
+			if scorer then scorer.DisplayName else scoringTeam,
+			if scoringTeam == "Home" then Config.Teams.Home.Name else Config.Teams.Away.Name
+		)
+
+		Network.GetEvent("GoalScoredVFX"):FireAllClients({
+			ScoringTeam = scoringTeam,
+			ScorerName = if scorer then scorer.DisplayName else scoringTeam,
+			AssisterName = if assister and assister ~= scorer then assister.DisplayName else nil,
+		})
+		broadcastMatchState()
+
+		task.delay(Config.GoalCelebrationSeconds, function()
+			goalScoredFlag = false
+			if matchPhase == "Playing" then
+				BallManager.ResetToSpot(Vector3.zero, false)
+				positionPlayersForKickoff()
+				BallManager.SetMatchActive(true, currentMode)
+				statusBanner = "Kickoff!"
+				broadcastMatchState()
+			end
+		end)
+	end,
+	-- On Goalkeeper Save
+	function(keeper)
+		DataService.AwardSave(keeper)
+		statusBanner = "GREAT SAVE by " .. keeper.DisplayName .. "!"
+		broadcastMatchState()
+	end,
+	-- On Set Piece
+	function(kind, _spot, team)
+		local teamName = if team == "Home" then Config.Teams.Home.Name else Config.Teams.Away.Name
+		statusBanner = string.format("%s — %s", kind, teamName)
+		broadcastMatchState()
+	end
+)
+
+-- 4. Main Match Loop
+task.spawn(function()
+	while true do
+		-- INTERMISSION
+		matchPhase = "Intermission"
+		halfNumber = 1
+		homeScore = 0
+		awayScore = 0
+		timeRemaining = Config.IntermissionSeconds
+		BallManager.SetMatchActive(false, currentMode)
+		statusBanner = "Intermission — Vote 5v5 or 11v11!"
+		local oldTrophy = Workspace:FindFirstChild("ChampionshipTrophy")
+		if oldTrophy then
+			oldTrophy:Destroy()
+		end
+
+		while timeRemaining > 0 do
+			broadcastMatchState()
+			task.wait(1)
+			timeRemaining -= 1
+		end
+
+		-- Apply voted mode & rebuild stadium if changed
+		local nextMode = resolveModeVote()
+		if nextMode ~= currentMode then
+			currentMode = nextMode
+			StadiumBuilder.Build(currentMode)
+		end
+
+		-- 1ST HALF
+		matchPhase = "Playing"
+		halfNumber = 1
+		timeRemaining = Config.MatchModes[currentMode].HalfDurationSeconds
+		statusBanner = "1st Half — Kickoff!"
+		BallManager.ResetToSpot(Vector3.zero, false)
+		positionPlayersForKickoff()
+		BallManager.SetMatchActive(true, currentMode)
+
+		while timeRemaining > 0 do
+			broadcastMatchState()
+			task.wait(1)
+			if not goalScoredFlag then
+				timeRemaining -= 1
+			end
+		end
+
+		-- HALF TIME
+		matchPhase = "HalfTime"
+		BallManager.SetMatchActive(false, currentMode)
+		timeRemaining = Config.HalfTimeSeconds
+		statusBanner = "Half-Time Break"
+		while timeRemaining > 0 do
+			broadcastMatchState()
+			task.wait(1)
+			timeRemaining -= 1
+		end
+
+		-- 2ND HALF
+		matchPhase = "Playing"
+		halfNumber = 2
+		timeRemaining = Config.MatchModes[currentMode].HalfDurationSeconds
+		statusBanner = "2nd Half — Kickoff!"
+		BallManager.ResetToSpot(Vector3.zero, false)
+		positionPlayersForKickoff()
+		BallManager.SetMatchActive(true, currentMode)
+
+		while timeRemaining > 0 do
+			broadcastMatchState()
+			task.wait(1)
+			if not goalScoredFlag then
+				timeRemaining -= 1
+			end
+		end
+
+		-- FULL TIME & TROPHY CEREMONY
+		matchPhase = "TrophyCeremony"
+		BallManager.SetMatchActive(false, currentMode)
+		local winner: "Home" | "Away" | "Draw" = "Draw"
+		local winnerName = "Draw Match"
+		if homeScore > awayScore then
+			winner = "Home"
+			winnerName = Config.Teams.Home.Name
+		elseif awayScore > homeScore then
+			winner = "Away"
+			winnerName = Config.Teams.Away.Name
+		end
+
+		statusBanner = "FULL TIME! " .. winnerName .. " Wins!"
+		spawnChampionshipTrophy(winnerName)
+		Network.GetEvent("TrophyCeremonyStart"):FireAllClients(winnerName)
+
+		for _, player in ipairs(Players:GetPlayers()) do
+			if winner ~= "Draw" then
+				local isHome = (player.Team == homeTeam)
+				local won = (winner == "Home" and isHome) or (winner == "Away" and not isHome)
+				DataService.RecordMatchResult(player, won)
+			end
+		end
+
+		timeRemaining = Config.TrophyCeremonySeconds
+		while timeRemaining > 0 do
+			broadcastMatchState()
+			task.wait(1)
+			timeRemaining -= 1
+		end
+	end
+end)
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000009">
+      <Properties>
+        <string name="Name">StadiumBuilder</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- StadiumBuilder.luau
+-- Procedurally constructs the entire FIFA stadium, pitch markings, goals, stands, and floodlights.
+
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Teams = game:GetService("Teams")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local StadiumBuilder = {}
+
+local function makePart(props: {
+	Name: string,
+	Size: Vector3,
+	CFrame: CFrame,
+	Color: Color3,
+	Material: Enum.Material?,
+	Transparency: number?,
+	CanCollide: boolean?,
+	Parent: Instance,
+}): Part
+	local p = Instance.new("Part")
+	p.Name = props.Name
+	p.Size = props.Size
+	p.CFrame = props.CFrame
+	p.Color = props.Color
+	p.Material = props.Material or Enum.Material.SmoothPlastic
+	p.Transparency = props.Transparency or 0
+	p.CanCollide = if props.CanCollide ~= nil then props.CanCollide else true
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = props.Parent
+	return p
+end
+
+local function setupAtmosphere()
+	Lighting.ClockTime = 20.5 -- Floodlit championship night match
+	Lighting.Brightness = 2.2
+	Lighting.Ambient = Color3.fromRGB(45, 52, 68)
+	Lighting.OutdoorAmbient = Color3.fromRGB(60, 72, 95)
+	Lighting.FogEnd = 1200
+
+	if not Lighting:FindFirstChildOfClass("Atmosphere") then
+		local atmo = Instance.new("Atmosphere")
+		atmo.Density = 0.22
+		atmo.Offset = 0.25
+		atmo.Color = Color3.fromRGB(140, 170, 220)
+		atmo.Decay = Color3.fromRGB(40, 50, 80)
+		atmo.Glare = 0.35
+		atmo.Haze = 1.2
+		atmo.Parent = Lighting
+	end
+
+	if not Lighting:FindFirstChildOfClass("BloomEffect") then
+		local bloom = Instance.new("BloomEffect")
+		bloom.Intensity = 0.45
+		bloom.Size = 18
+		bloom.Threshold = 1.15
+		bloom.Parent = Lighting
+	end
+end
+
+local function buildLine(parent: Instance, name: string, p1: Vector3, p2: Vector3, width: number)
+	local delta = p2 - p1
+	local len = delta.Magnitude
+	if len < 0.01 then
+		return
+	end
+	local mid = (p1 + p2) * 0.5
+	local cf = CFrame.lookAt(mid, p2)
+	makePart({
+		Name = name,
+		Size = Vector3.new(width, 0.08, len + width),
+		CFrame = cf,
+		Color = Color3.fromRGB(245, 248, 252),
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+		Parent = parent,
+	})
+end
+
+local function buildCircle(parent: Instance, center: Vector3, radius: number, segments: number, lineWidth: number)
+	for i = 1, segments do
+		local a1 = ((i - 1) / segments) * math.pi * 2
+		local a2 = (i / segments) * math.pi * 2
+		local p1 = center + Vector3.new(math.cos(a1) * radius, 0, math.sin(a1) * radius)
+		local p2 = center + Vector3.new(math.cos(a2) * radius, 0, math.sin(a2) * radius)
+		buildLine(parent, "CircleSeg_" .. i, p1, p2, lineWidth)
+	end
+end
+
+local function buildGoal(parent: Instance, name: string, zPos: number, facingSign: number, goalWidth: number, goalHeight: number)
+	local goalFolder = Instance.new("Folder")
+	goalFolder.Name = name
+	goalFolder.Parent = parent
+
+	local postRadius = 0.45
+	local depth = 7.5
+	local halfW = goalWidth * 0.5
+	local white = Color3.fromRGB(245, 247, 250)
+
+	-- Left & Right Posts
+	makePart({
+		Name = "LeftPost",
+		Size = Vector3.new(postRadius * 2, goalHeight, postRadius * 2),
+		CFrame = CFrame.new(-halfW, goalHeight * 0.5, zPos),
+		Color = white,
+		Material = Enum.Material.Metal,
+		Parent = goalFolder,
+	})
+	makePart({
+		Name = "RightPost",
+		Size = Vector3.new(postRadius * 2, goalHeight, postRadius * 2),
+		CFrame = CFrame.new(halfW, goalHeight * 0.5, zPos),
+		Color = white,
+		Material = Enum.Material.Metal,
+		Parent = goalFolder,
+	})
+	-- Crossbar
+	makePart({
+		Name = "Crossbar",
+		Size = Vector3.new(goalWidth + postRadius * 2, postRadius * 2, postRadius * 2),
+		CFrame = CFrame.new(0, goalHeight, zPos),
+		Color = white,
+		Material = Enum.Material.Metal,
+		Parent = goalFolder,
+	})
+
+	-- Back net frame & semi-transparent net panels
+	local backZ = zPos + facingSign * depth
+	local netColor = Color3.fromRGB(235, 240, 245)
+
+	makePart({
+		Name = "BackNet",
+		Size = Vector3.new(goalWidth, goalHeight, 0.25),
+		CFrame = CFrame.new(0, goalHeight * 0.5, backZ),
+		Color = netColor,
+		Material = Enum.Material.Fabric,
+		Transparency = 0.55,
+		Parent = goalFolder,
+	})
+	makePart({
+		Name = "TopNet",
+		Size = Vector3.new(goalWidth, 0.25, depth),
+		CFrame = CFrame.new(0, goalHeight, (zPos + backZ) * 0.5),
+		Color = netColor,
+		Material = Enum.Material.Fabric,
+		Transparency = 0.55,
+		Parent = goalFolder,
+	})
+	makePart({
+		Name = "LeftNet",
+		Size = Vector3.new(0.25, goalHeight, depth),
+		CFrame = CFrame.new(-halfW, goalHeight * 0.5, (zPos + backZ) * 0.5),
+		Color = netColor,
+		Material = Enum.Material.Fabric,
+		Transparency = 0.55,
+		Parent = goalFolder,
+	})
+	makePart({
+		Name = "RightNet",
+		Size = Vector3.new(0.25, goalHeight, depth),
+		CFrame = CFrame.new(halfW, goalHeight * 0.5, (zPos + backZ) * 0.5),
+		Color = netColor,
+		Material = Enum.Material.Fabric,
+		Transparency = 0.55,
+		Parent = goalFolder,
+	})
+
+	-- Goal-line sensor (used for visual reference; BallManager also checks exact coordinates)
+	makePart({
+		Name = "GoalSensor",
+		Size = Vector3.new(goalWidth - 0.5, goalHeight - 0.5, depth),
+		CFrame = CFrame.new(0, goalHeight * 0.5, (zPos + backZ) * 0.5),
+		Color = Color3.fromRGB(255, 215, 0),
+		Transparency = 1,
+		CanCollide = false,
+		Parent = goalFolder,
+	})
+end
+
+local function buildStandsAndFloodlights(parent: Instance, halfL: number, halfW: number)
+	local standsFolder = Instance.new("Folder")
+	standsFolder.Name = "Stands"
+	standsFolder.Parent = parent
+
+	local margin = 24
+	local tierCount = 5
+	local tierDepth = 7
+	local tierHeight = 4.5
+	local crowdPalette = {
+		Color3.fromRGB(28, 100, 242),
+		Color3.fromRGB(224, 36, 36),
+		Color3.fromRGB(245, 158, 11),
+		Color3.fromRGB(241, 245, 249),
+		Color3.fromRGB(16, 185, 129),
+	}
+
+	-- Side stands (East & West)
+	for _, side in ipairs({ -1, 1 }) do
+		for t = 1, tierCount do
+			local x = side * (halfW + margin + (t - 0.5) * tierDepth)
+			local y = (t - 0.5) * tierHeight
+			makePart({
+				Name = "SideTier_" .. side .. "_" .. t,
+				Size = Vector3.new(tierDepth, tierHeight, (halfL + margin) * 2),
+				CFrame = CFrame.new(x, y, 0),
+				Color = Color3.fromRGB(30, 36, 48),
+				Material = Enum.Material.Concrete,
+				Parent = standsFolder,
+			})
+			-- Crowd strip
+			makePart({
+				Name = "Crowd_" .. side .. "_" .. t,
+				Size = Vector3.new(tierDepth * 0.55, 1.8, (halfL + margin) * 1.9),
+				CFrame = CFrame.new(x, y + tierHeight * 0.5 + 0.9, 0),
+				Color = crowdPalette[((t + (side > 0 and 1 or 2)) % #crowdPalette) + 1],
+				Material = Enum.Material.SmoothPlastic,
+				CanCollide = false,
+				Parent = standsFolder,
+			})
+		end
+	end
+
+	-- End stands (North & South)
+	for _, endSign in ipairs({ -1, 1 }) do
+		for t = 1, tierCount do
+			local z = endSign * (halfL + margin + (t - 0.5) * tierDepth)
+			local y = (t - 0.5) * tierHeight
+			makePart({
+				Name = "EndTier_" .. endSign .. "_" .. t,
+				Size = Vector3.new((halfW + margin) * 2, tierHeight, tierDepth),
+				CFrame = CFrame.new(0, y, z),
+				Color = Color3.fromRGB(30, 36, 48),
+				Material = Enum.Material.Concrete,
+				Parent = standsFolder,
+			})
+		end
+	end
+
+	-- 4 Towering Floodlights
+	local towerCorners = {
+		Vector3.new(-halfW - margin - 18, 0, -halfL - margin - 18),
+		Vector3.new(halfW + margin + 18, 0, -halfL - margin - 18),
+		Vector3.new(-halfW - margin - 18, 0, halfL + margin + 18),
+		Vector3.new(halfW + margin + 18, 0, halfL + margin + 18),
+	}
+	for i, basePos in ipairs(towerCorners) do
+		local towerH = 95
+		makePart({
+			Name = "FloodlightPole_" .. i,
+			Size = Vector3.new(4, towerH, 4),
+			CFrame = CFrame.new(basePos + Vector3.new(0, towerH * 0.5, 0)),
+			Color = Color3.fromRGB(71, 85, 105),
+			Material = Enum.Material.Metal,
+			Parent = standsFolder,
+		})
+
+		local headPos = basePos + Vector3.new(0, towerH, 0)
+		local head = makePart({
+			Name = "FloodlightHead_" .. i,
+			Size = Vector3.new(12, 6, 3),
+			CFrame = CFrame.lookAt(headPos, Vector3.new(0, 0, 0)),
+			Color = Color3.fromRGB(255, 250, 235),
+			Material = Enum.Material.Neon,
+			Parent = standsFolder,
+		})
+
+		local spot = Instance.new("SpotLight")
+		spot.Brightness = 4.5
+		spot.Range = 260
+		spot.Angle = 75
+		spot.Color = Color3.fromRGB(255, 248, 230)
+		spot.Face = Enum.NormalId.Front
+		spot.Parent = head
+	end
+end
+
+local function buildSpawns(parent: Instance, halfL: number)
+	local homeTeam = Teams:FindFirstChild("Home FC") :: Team?
+	local awayTeam = Teams:FindFirstChild("Away United") :: Team?
+
+	local function createSpawn(name: string, pos: Vector3, lookAtPos: Vector3, team: Team?)
+		local sp = Instance.new("SpawnLocation")
+		sp.Name = name
+		sp.Size = Vector3.new(6, 0.5, 6)
+		sp.CFrame = CFrame.lookAt(pos, lookAtPos)
+		sp.Anchored = true
+		sp.CanCollide = false
+		sp.Transparency = 1
+		sp.Duration = 0
+		if team then
+			sp.Neutral = false
+			sp.TeamColor = team.TeamColor
+		end
+		sp.Parent = parent
+	end
+
+	for i = -2, 2 do
+		createSpawn("HomeSpawn_" .. i, Vector3.new(i * 14, 0.5, -halfL * 0.45), Vector3.new(0, 0.5, 0), homeTeam)
+		createSpawn("AwaySpawn_" .. i, Vector3.new(i * 14, 0.5, halfL * 0.45), Vector3.new(0, 0.5, 0), awayTeam)
+	end
+end
+
+function StadiumBuilder.Build(mode: Config.MatchMode)
+	setupAtmosphere()
+
+	local existing = Workspace:FindFirstChild("Stadium")
+	if existing then
+		existing:Destroy()
+	end
+
+	local modeCfg = Config.MatchModes[mode]
+	local halfL = modeCfg.PitchLength * 0.5
+	local halfW = modeCfg.PitchWidth * 0.5
+
+	local stadium = Instance.new("Folder")
+	stadium.Name = "Stadium"
+	stadium.Parent = Workspace
+
+	-- Concrete stadium floor apron
+	makePart({
+		Name = "StadiumFloor",
+		Size = Vector3.new(modeCfg.PitchWidth + 130, 4, modeCfg.PitchLength + 130),
+		CFrame = CFrame.new(0, -2.1, 0),
+		Color = Color3.fromRGB(45, 52, 64),
+		Material = Enum.Material.Concrete,
+		Parent = stadium,
+	})
+
+	-- Mowed grass stripes
+	local stripeCount = 16
+	local stripeLen = modeCfg.PitchLength / stripeCount
+	for i = 1, stripeCount do
+		local z = -halfL + (i - 0.5) * stripeLen
+		local isEven = (i % 2 == 0)
+		makePart({
+			Name = "TurfStripe_" .. i,
+			Size = Vector3.new(modeCfg.PitchWidth + 10, Config.TurfThickness, stripeLen),
+			CFrame = CFrame.new(0, -Config.TurfThickness * 0.5, z),
+			Color = if isEven then Color3.fromRGB(34, 139, 64) else Color3.fromRGB(40, 156, 72),
+			Material = Enum.Material.Grass,
+			Parent = stadium,
+		})
+	end
+
+	-- Pitch Lines
+	local linesFolder = Instance.new("Folder")
+	linesFolder.Name = "PitchLines"
+	linesFolder.Parent = stadium
+
+	local y = 0.05
+	local lw = 0.65
+
+	-- Outer touchlines & goal lines
+	buildLine(linesFolder, "NorthGoalLine", Vector3.new(-halfW, y, -halfL), Vector3.new(halfW, y, -halfL), lw)
+	buildLine(linesFolder, "SouthGoalLine", Vector3.new(-halfW, y, halfL), Vector3.new(halfW, y, halfL), lw)
+	buildLine(linesFolder, "WestTouchline", Vector3.new(-halfW, y, -halfL), Vector3.new(-halfW, y, halfL), lw)
+	buildLine(linesFolder, "EastTouchline", Vector3.new(halfW, y, -halfL), Vector3.new(halfW, y, halfL), lw)
+
+	-- Halfway line & center circle
+	buildLine(linesFolder, "HalfwayLine", Vector3.new(-halfW, y, 0), Vector3.new(halfW, y, 0), lw)
+	buildCircle(linesFolder, Vector3.new(0, y, 0), 22, 32, lw)
+
+	-- Center spot
+	makePart({
+		Name = "CenterSpot",
+		Size = Vector3.new(1.8, 0.08, 1.8),
+		CFrame = CFrame.new(0, y, 0),
+		Color = Color3.fromRGB(245, 248, 252),
+		CanCollide = false,
+		Parent = linesFolder,
+	})
+
+	-- Penalty boxes (Home & Away)
+	local boxDepth = Config.Kicks.GKBoxDepth
+	local boxHalfW = Config.Kicks.GKBoxWidth * 0.5
+	for _, endSign in ipairs({ -1, 1 }) do
+		local goalZ = endSign * halfL
+		local boxZ = goalZ - endSign * boxDepth
+		buildLine(linesFolder, "BoxFront_" .. endSign, Vector3.new(-boxHalfW, y, boxZ), Vector3.new(boxHalfW, y, boxZ), lw)
+		buildLine(linesFolder, "BoxLeft_" .. endSign, Vector3.new(-boxHalfW, y, goalZ), Vector3.new(-boxHalfW, y, boxZ), lw)
+		buildLine(linesFolder, "BoxRight_" .. endSign, Vector3.new(boxHalfW, y, goalZ), Vector3.new(boxHalfW, y, boxZ), lw)
+
+		-- Penalty spot
+		makePart({
+			Name = "PenaltySpot_" .. endSign,
+			Size = Vector3.new(1.5, 0.08, 1.5),
+			CFrame = CFrame.new(0, y, goalZ - endSign * (boxDepth * 0.68)),
+			Color = Color3.fromRGB(245, 248, 252),
+			CanCollide = false,
+			Parent = linesFolder,
+		})
+	end
+
+	-- Corner flags
+	local corners = {
+		Vector3.new(-halfW, 0, -halfL),
+		Vector3.new(halfW, 0, -halfL),
+		Vector3.new(-halfW, 0, halfL),
+		Vector3.new(halfW, 0, halfL),
+	}
+	for i, cPos in ipairs(corners) do
+		makePart({
+			Name = "CornerPole_" .. i,
+			Size = Vector3.new(0.35, 5, 0.35),
+			CFrame = CFrame.new(cPos + Vector3.new(0, 2.5, 0)),
+			Color = Color3.fromRGB(250, 204, 21),
+			CanCollide = false,
+			Parent = stadium,
+		})
+		makePart({
+			Name = "CornerFlag_" .. i,
+			Size = Vector3.new(1.8, 1.1, 0.15),
+			CFrame = CFrame.new(cPos + Vector3.new(0.9, 4.4, 0)),
+			Color = Color3.fromRGB(239, 68, 68),
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+			Parent = stadium,
+		})
+	end
+
+	-- Goals (Home defends -halfL, Away defends +halfL)
+	buildGoal(stadium, "HomeGoal", -halfL, -1, modeCfg.GoalWidth, modeCfg.GoalHeight)
+	buildGoal(stadium, "AwayGoal", halfL, 1, modeCfg.GoalWidth, modeCfg.GoalHeight)
+
+	-- Stands & Floodlights
+	buildStandsAndFloodlights(stadium, halfL, halfW)
+
+	-- Team SpawnLocations
+	buildSpawns(stadium, halfL)
+end
+
+return StadiumBuilder
+]]></ProtectedString>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="StarterGui" referent="RBX000019">
+    <Properties>
+      <string name="Name">StarterGui</string>
+    </Properties>
+  </Item>
+  <Item class="StarterPlayer" referent="RBX000020">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="RBX000021">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+    <Item class="LocalScript" referent="RBX000010">
+      <Properties>
+        <string name="Name">HUDController</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- HUDController.client.luau
+-- Procedurally builds the broadcast scoreboard, power/curve/stamina bars, goal banner, and Club/Shop/Leaderboard UI.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local Catalog = require(ReplicatedStorage.Shared.Catalog)
+local Config = require(ReplicatedStorage.Shared.Config)
+local Network = require(ReplicatedStorage.Shared.Network)
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local currentProfile: any = nil
+
+local function makeCorner(parent: Instance, radius: number)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius)
+	c.Parent = parent
+end
+
+local function makeStroke(parent: Instance, color: Color3, thickness: number)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = thickness
+	s.Parent = parent
+end
+
+-- Root ScreenGui
+local gui = Instance.new("ScreenGui")
+gui.Name = "FIFASoccerHUD"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+
+-- 1. Top Broadcast Scorebug
+local scorebug = Instance.new("Frame")
+scorebug.Size = UDim2.fromOffset(470, 68)
+scorebug.Position = UDim2.new(0.5, -235, 0, 14)
+scorebug.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+scorebug.BackgroundTransparency = 0.12
+scorebug.Parent = gui
+makeCorner(scorebug, 12)
+makeStroke(scorebug, Color3.fromRGB(51, 65, 85), 1.5)
+
+local homeTag = Instance.new("Frame")
+homeTag.Size = UDim2.fromOffset(150, 38)
+homeTag.Position = UDim2.fromOffset(8, 6)
+homeTag.BackgroundColor3 = Config.Teams.Home.PrimaryColor
+homeTag.Parent = scorebug
+makeCorner(homeTag, 8)
+
+local homeLbl = Instance.new("TextLabel")
+homeLbl.Size = UDim2.fromScale(1, 1)
+homeLbl.BackgroundTransparency = 1
+homeLbl.Text = "HOME  0"
+homeLbl.TextColor3 = Color3.new(1, 1, 1)
+homeLbl.Font = Enum.Font.GothamBlack
+homeLbl.TextSize = 18
+homeLbl.Parent = homeTag
+
+local awayTag = Instance.new("Frame")
+awayTag.Size = UDim2.fromOffset(150, 38)
+awayTag.Position = UDim2.new(1, -158, 0, 6)
+awayTag.BackgroundColor3 = Config.Teams.Away.PrimaryColor
+awayTag.Parent = scorebug
+makeCorner(awayTag, 8)
+
+local awayLbl = Instance.new("TextLabel")
+awayLbl.Size = UDim2.fromScale(1, 1)
+awayLbl.BackgroundTransparency = 1
+awayLbl.Text = "0  AWAY"
+awayLbl.TextColor3 = Color3.new(1, 1, 1)
+awayLbl.Font = Enum.Font.GothamBlack
+awayLbl.TextSize = 18
+awayLbl.Parent = awayTag
+
+local clockLbl = Instance.new("TextLabel")
+clockLbl.Size = UDim2.fromOffset(138, 38)
+clockLbl.Position = UDim2.fromOffset(166, 6)
+clockLbl.BackgroundTransparency = 1
+clockLbl.Text = "00:00  |  5v5"
+clockLbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+clockLbl.Font = Enum.Font.GothamBold
+clockLbl.TextSize = 16
+clockLbl.Parent = scorebug
+
+local statusLbl = Instance.new("TextLabel")
+statusLbl.Size = UDim2.new(1, -16, 0, 20)
+statusLbl.Position = UDim2.fromOffset(8, 45)
+statusLbl.BackgroundTransparency = 1
+statusLbl.Text = "Warmup — Next Match Starting Soon"
+statusLbl.TextColor3 = Color3.fromRGB(203, 213, 225)
+statusLbl.Font = Enum.Font.GothamSemibold
+statusLbl.TextSize = 13
+statusLbl.Parent = scorebug
+
+-- 2. Bottom-Right Power, Curve & Stamina HUD
+local meterFrame = Instance.new("Frame")
+meterFrame.Size = UDim2.fromOffset(250, 118)
+meterFrame.Position = UDim2.new(1, -270, 1, -138)
+meterFrame.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+meterFrame.BackgroundTransparency = 0.18
+meterFrame.Parent = gui
+makeCorner(meterFrame, 12)
+makeStroke(meterFrame, Color3.fromRGB(51, 65, 85), 1.5)
+
+local function makeBar(yOffset: number, labelText: string, fillColor: Color3): Frame
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromOffset(70, 18)
+	lbl.Position = UDim2.fromOffset(10, yOffset)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextColor3 = Color3.fromRGB(226, 232, 240)
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 12
+	lbl.Parent = meterFrame
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromOffset(154, 12)
+	bg.Position = UDim2.fromOffset(84, yOffset + 3)
+	bg.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	bg.Parent = meterFrame
+	makeCorner(bg, 6)
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = fillColor
+	fill.Parent = bg
+	makeCorner(fill, 6)
+	return fill
+end
+
+local powerFill = makeBar(12, "POWER", Color3.fromRGB(250, 204, 21))
+local curveFill = makeBar(36, "CURVE", Color3.fromRGB(56, 189, 248))
+local staminaFill = makeBar(60, "STAMINA", Color3.fromRGB(34, 197, 94))
+
+local controlsHint = Instance.new("TextLabel")
+controlsHint.Size = UDim2.new(1, -16, 0, 32)
+controlsHint.Position = UDim2.fromOffset(8, 82)
+controlsHint.BackgroundTransparency = 1
+controlsHint.Text = "LMB/E: Shoot | F: Through-Ball | RMB/Q: Lob\nA/D: Curve | R: Tackle | Space: GK Dive | G: Celebrate"
+controlsHint.TextColor3 = Color3.fromRGB(148, 163, 184)
+controlsHint.Font = Enum.Font.Gotham
+controlsHint.TextSize = 10
+controlsHint.Parent = meterFrame
+
+-- 3. Goal Banner Overlay
+local goalBanner = Instance.new("Frame")
+goalBanner.Size = UDim2.fromOffset(520, 96)
+goalBanner.Position = UDim2.new(0.5, -260, 0.22, 0)
+goalBanner.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+goalBanner.BackgroundTransparency = 0.08
+goalBanner.Visible = false
+goalBanner.Parent = gui
+makeCorner(goalBanner, 16)
+makeStroke(goalBanner, Color3.fromRGB(250, 204, 21), 3)
+
+local goalTitle = Instance.new("TextLabel")
+goalTitle.Size = UDim2.new(1, 0, 0.55, 0)
+goalTitle.BackgroundTransparency = 1
+goalTitle.Text = "GOAL!"
+goalTitle.TextColor3 = Color3.fromRGB(250, 204, 21)
+goalTitle.Font = Enum.Font.GothamBlack
+goalTitle.TextSize = 38
+goalTitle.Parent = goalBanner
+
+local goalSub = Instance.new("TextLabel")
+goalSub.Size = UDim2.new(1, 0, 0.45, 0)
+goalSub.Position = UDim2.fromScale(0, 0.52)
+goalSub.BackgroundTransparency = 1
+goalSub.Text = "Scored by Player"
+goalSub.TextColor3 = Color3.new(1, 1, 1)
+goalSub.Font = Enum.Font.GothamBold
+goalSub.TextSize = 20
+goalSub.Parent = goalBanner
+
+-- 4. Club / Locker Room / Leaderboard Modal
+local menuBtn = Instance.new("TextButton")
+menuBtn.Size = UDim2.fromOffset(170, 38)
+menuBtn.Position = UDim2.new(1, -190, 0, 16)
+menuBtn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+menuBtn.Text = "CLUB & SHOP [TAB]"
+menuBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+menuBtn.Font = Enum.Font.GothamBold
+menuBtn.TextSize = 13
+menuBtn.Parent = gui
+makeCorner(menuBtn, 10)
+makeStroke(menuBtn, Color3.fromRGB(250, 204, 21), 1.5)
+
+local modal = Instance.new("Frame")
+modal.Size = UDim2.fromOffset(660, 460)
+modal.Position = UDim2.new(0.5, -330, 0.5, -230)
+modal.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+modal.BackgroundTransparency = 0.04
+modal.Visible = false
+modal.Parent = gui
+makeCorner(modal, 16)
+makeStroke(modal, Color3.fromRGB(71, 85, 105), 2)
+
+local modalHeader = Instance.new("TextLabel")
+modalHeader.Size = UDim2.new(1, -120, 0, 44)
+modalHeader.Position = UDim2.fromOffset(18, 8)
+modalHeader.BackgroundTransparency = 1
+modalHeader.Text = "DREAM SQUAD & LOCKER ROOM"
+modalHeader.TextXAlignment = Enum.TextXAlignment.Left
+modalHeader.TextColor3 = Color3.new(1, 1, 1)
+modalHeader.Font = Enum.Font.GothamBlack
+modalHeader.TextSize = 20
+modalHeader.Parent = modal
+
+local coinsLbl = Instance.new("TextLabel")
+coinsLbl.Size = UDim2.fromOffset(180, 44)
+coinsLbl.Position = UDim2.new(1, -196, 0, 8)
+coinsLbl.BackgroundTransparency = 1
+coinsLbl.Text = "Coins: 0 | ELO: 1000"
+coinsLbl.TextXAlignment = Enum.TextXAlignment.Right
+coinsLbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+coinsLbl.Font = Enum.Font.GothamBold
+coinsLbl.TextSize = 14
+coinsLbl.Parent = modal
+
+local tabBar = Instance.new("Frame")
+tabBar.Size = UDim2.new(1, -36, 0, 36)
+tabBar.Position = UDim2.fromOffset(18, 54)
+tabBar.BackgroundTransparency = 1
+tabBar.Parent = modal
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.Padding = UDim.new(0, 8)
+tabLayout.Parent = tabBar
+
+local contentScroll = Instance.new("ScrollingFrame")
+contentScroll.Size = UDim2.new(1, -36, 1, -110)
+contentScroll.Position = UDim2.fromOffset(18, 98)
+contentScroll.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+contentScroll.BackgroundTransparency = 0.4
+contentScroll.ScrollBarThickness = 6
+contentScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+contentScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+contentScroll.Parent = modal
+makeCorner(contentScroll, 10)
+
+local contentPad = Instance.new("UIPadding")
+contentPad.PaddingTop = UDim.new(0, 10)
+contentPad.PaddingLeft = UDim.new(0, 10)
+contentPad.PaddingRight = UDim.new(0, 10)
+contentPad.Parent = contentScroll
+
+local contentList = Instance.new("UIListLayout")
+contentList.Padding = UDim.new(0, 8)
+contentList.Parent = contentScroll
+
+local activeTab = "Squad"
+
+local function clearContent()
+	for _, child in ipairs(contentScroll:GetChildren()) do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+end
+
+local function makeRowCard(title: string, subtitle: string, btnText: string?, btnColor: Color3?, onClick: (() -> ())?)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(1, -8, 0, 58)
+	card.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+	card.Parent = contentScroll
+	makeCorner(card, 8)
+
+	local tLbl = Instance.new("TextLabel")
+	tLbl.Size = UDim2.new(1, -140, 0, 26)
+	tLbl.Position = UDim2.fromOffset(12, 6)
+	tLbl.BackgroundTransparency = 1
+	tLbl.Text = title
+	tLbl.TextXAlignment = Enum.TextXAlignment.Left
+	tLbl.TextColor3 = Color3.new(1, 1, 1)
+	tLbl.Font = Enum.Font.GothamBold
+	tLbl.TextSize = 15
+	tLbl.Parent = card
+
+	local sLbl = Instance.new("TextLabel")
+	sLbl.Size = UDim2.new(1, -140, 0, 20)
+	sLbl.Position = UDim2.fromOffset(12, 32)
+	sLbl.BackgroundTransparency = 1
+	sLbl.Text = subtitle
+	sLbl.TextXAlignment = Enum.TextXAlignment.Left
+	sLbl.TextColor3 = Color3.fromRGB(148, 163, 184)
+	sLbl.Font = Enum.Font.Gotham
+	sLbl.TextSize = 12
+	sLbl.Parent = card
+
+	if btnText and onClick then
+		local btn = Instance.new("TextButton")
+		btn.Size = UDim2.fromOffset(112, 36)
+		btn.Position = UDim2.new(1, -124, 0.5, -18)
+		btn.BackgroundColor3 = btnColor or Color3.fromRGB(37, 99, 235)
+		btn.Text = btnText
+		btn.TextColor3 = Color3.new(1, 1, 1)
+		btn.Font = Enum.Font.GothamBold
+		btn.TextSize = 13
+		btn.Parent = card
+		makeCorner(btn, 8)
+		btn.MouseButton1Click:Connect(onClick)
+	end
+end
+
+local function renderTab()
+	clearContent()
+	local prof = currentProfile
+	if not prof then
+		return
+	end
+	coinsLbl.Text = string.format("Coins: %d | ELO: %d", prof.Coins or 0, prof.ELO or 1000)
+
+	if activeTab == "Squad" then
+		-- Club Name Editor
+		local clubBox = Instance.new("TextBox")
+		clubBox.Size = UDim2.new(1, -8, 0, 42)
+		clubBox.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+		clubBox.PlaceholderText = "Enter Club Name..."
+		clubBox.Text = prof.ClubName or "My Club FC"
+		clubBox.TextColor3 = Color3.fromRGB(250, 204, 21)
+		clubBox.Font = Enum.Font.GothamBold
+		clubBox.TextSize = 16
+		clubBox.Parent = contentScroll
+		makeCorner(clubBox, 8)
+		clubBox.FocusLost:Connect(function()
+			Network.GetEvent("UpdateClubName"):FireServer(clubBox.Text)
+		end)
+
+		makeRowCard(
+			string.format("Career Stats: %d Goals | %d Assists | %d Saves", prof.Goals, prof.Assists, prof.Saves),
+			string.format("Wins: %d / Matches: %d | Formation: %s", prof.Wins, prof.Matches, prof.Formation),
+			nil,
+			nil,
+			nil
+		)
+		makeRowCard("Vote Match Format: 5v5 Fast-Paced", "Shorter pitch, rapid counter-attacks", "Vote 5v5", Color3.fromRGB(22, 163, 74), function()
+			Network.GetEvent("VoteMatchMode"):FireServer("5v5")
+		end)
+		makeRowCard("Vote Match Format: 11v11 Competitive", "Full-size stadium pitch & tactical play", "Vote 11v11", Color3.fromRGB(37, 99, 235), function()
+			Network.GetEvent("VoteMatchMode"):FireServer("11v11")
+		end)
+
+		for _, form in ipairs(Catalog.Formations) do
+			local equipped = (prof.Formation == form)
+			makeRowCard(
+				form,
+				"Dream Squad Tactical Setup",
+				if equipped then "Active" else "Select",
+				if equipped then Color3.fromRGB(100, 116, 139) else Color3.fromRGB(37, 99, 235),
+				function()
+					Network.GetEvent("EquipItem"):FireServer("Formation", form)
+				end
+			)
+		end
+	elseif activeTab == "Kits" then
+		for _, kit in ipairs(Catalog.Kits) do
+			local unlocked = prof.UnlockedKits and prof.UnlockedKits[kit.Id]
+			local equipped = (prof.EquippedKit == kit.Id)
+			local btnTxt = if equipped then "Equipped" elseif unlocked then "Equip" else (kit.Price .. " Coins")
+			local btnCol = if equipped
+				then Color3.fromRGB(100, 116, 139)
+				elseif unlocked then Color3.fromRGB(22, 163, 74)
+				else Color3.fromRGB(217, 119, 6)
+			makeRowCard(kit.Name, kit.Description, btnTxt, btnCol, function()
+				if unlocked then
+					Network.GetEvent("EquipItem"):FireServer("Kit", kit.Id)
+				else
+					Network.GetEvent("PurchaseItem"):FireServer("Kit", kit.Id)
+				end
+			end)
+		end
+	elseif activeTab == "Celebrations" then
+		for _, cel in ipairs(Catalog.Celebrations) do
+			local unlocked = prof.UnlockedCelebrations and prof.UnlockedCelebrations[cel.Id]
+			local equipped = (prof.EquippedCelebration == cel.Id)
+			local btnTxt = if equipped then "Equipped" elseif unlocked then "Equip" else (cel.Price .. " Coins")
+			local btnCol = if equipped
+				then Color3.fromRGB(100, 116, 139)
+				elseif unlocked then Color3.fromRGB(22, 163, 74)
+				else Color3.fromRGB(217, 119, 6)
+			makeRowCard(cel.Name, cel.Description, btnTxt, btnCol, function()
+				if unlocked then
+					Network.GetEvent("EquipItem"):FireServer("Celebration", cel.Id)
+				else
+					Network.GetEvent("PurchaseItem"):FireServer("Celebration", cel.Id)
+				end
+			end)
+		end
+	elseif activeTab == "Leaderboard" then
+		local lbData = Network.GetFunction("GetLeaderboards"):InvokeServer()
+		if lbData then
+			makeRowCard("TOP SCORERS (GLOBAL)", "Most career goals across all matches", nil, nil, nil)
+			for idx, entry in ipairs(lbData.Goals or {}) do
+				makeRowCard(string.format("#%d  %s", idx, entry.Name), string.format("%d Goals", entry.Value), nil, nil, nil)
+			end
+			makeRowCard("TOP CLUBS (ELO RATING)", "Highest competitive skill rating", nil, nil, nil)
+			for idx, entry in ipairs(lbData.ELO or {}) do
+				makeRowCard(string.format("#%d  %s", idx, entry.Name), string.format("%d ELO", entry.Value), nil, nil, nil)
+			end
+		end
+	end
+end
+
+local function makeTabButton(name: string, label: string)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.fromOffset(148, 34)
+	b.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	b.Text = label
+	b.TextColor3 = Color3.new(1, 1, 1)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 13
+	b.Parent = tabBar
+	makeCorner(b, 8)
+	b.MouseButton1Click:Connect(function()
+		activeTab = name
+		renderTab()
+	end)
+end
+
+makeTabButton("Squad", "Dream Squad")
+makeTabButton("Kits", "Custom Kits")
+makeTabButton("Celebrations", "Celebrations")
+makeTabButton("Leaderboard", "Leaderboards")
+
+local function toggleModal()
+	modal.Visible = not modal.Visible
+	if modal.Visible then
+		renderTab()
+	end
+end
+
+menuBtn.MouseButton1Click:Connect(toggleModal)
+UserInputService.InputBegan:Connect(function(input, gp)
+	if not gp and input.KeyCode == Enum.KeyCode.Tab then
+		toggleModal()
+	end
+end)
+
+-- Profile & Match Event Listeners
+task.spawn(function()
+	currentProfile = Network.GetFunction("GetProfile"):InvokeServer()
+	if modal.Visible then
+		renderTab()
+	end
+end)
+
+Network.GetEvent("ProfileUpdated").OnClientEvent:Connect(function(prof)
+	currentProfile = prof
+	if modal.Visible then
+		renderTab()
+	end
+end)
+
+Network.GetEvent("MatchStateUpdate").OnClientEvent:Connect(function(state)
+	if not state then
+		return
+	end
+	homeLbl.Text = string.format("HOME  %d", state.HomeScore or 0)
+	awayLbl.Text = string.format("%d  AWAY", state.AwayScore or 0)
+	local mins = math.floor((state.TimeRemaining or 0) / 60)
+	local secs = (state.TimeRemaining or 0) % 60
+	clockLbl.Text = string.format("%02d:%02d  |  %s", mins, secs, tostring(state.Mode or "5v5"))
+	statusLbl.Text = tostring(state.Status or "")
+end)
+
+Network.GetEvent("GoalScoredVFX").OnClientEvent:Connect(function(info)
+	goalTitle.Text = "GOAL! " .. string.upper(tostring(info.ScoringTeam or ""))
+	if info.AssisterName then
+		goalSub.Text = string.format("Scored by %s  (Assist: %s)", info.ScorerName, info.AssisterName)
+	else
+		goalSub.Text = string.format("Scored by %s", tostring(info.ScorerName))
+	end
+	goalBanner.Visible = true
+	task.delay(4.5, function()
+		goalBanner.Visible = false
+	end)
+end)
+
+-- Live Power / Curve / Stamina Bar Updates
+RunService.RenderStepped:Connect(function()
+	local pwr = (player:GetAttribute("KickCharge") :: number?) or 0
+	local crv = (player:GetAttribute("KickCurve") :: number?) or 0
+	local stm = (player:GetAttribute("Stamina") :: number?) or 100
+
+	powerFill.Size = UDim2.fromScale(math.clamp(pwr, 0, 1), 1)
+	powerFill.BackgroundColor3 = if pwr > 0.8 then Color3.fromRGB(239, 68, 68) else Color3.fromRGB(250, 204, 21)
+
+	local curveNorm = (math.clamp(crv, -1, 1) + 1) * 0.5
+	curveFill.Size = UDim2.fromScale(curveNorm, 1)
+
+	staminaFill.Size = UDim2.fromScale(math.clamp(stm / Config.Stamina.Max, 0, 1), 1)
+end)
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="LocalScript" referent="RBX000011">
+      <Properties>
+        <string name="Name">SoccerController</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- SoccerController.client.luau
+-- Client input, stamina/sprint, hold-to-charge curving shots, pinpoint through-balls, GK dives, and tackles.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
+local Config = require(ReplicatedStorage.Shared.Config)
+local Network = require(ReplicatedStorage.Shared.Network)
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+local stamina = Config.Stamina.Max
+local isSprinting = false
+local chargingKick: string? = nil
+local chargePower = 0
+local curveAmount = 0
+local lastTackleTime = 0
+local lastDiveTime = 0
+local currentMode: Config.MatchMode = Config.DefaultMode
+local ballOwnerId = 0
+
+-- Trajectory preview dots for curving free kicks & shots
+local previewFolder = Instance.new("Folder")
+previewFolder.Name = "TrajectoryPreview"
+previewFolder.Parent = Workspace
+
+local previewDots: { Part } = {}
+for i = 1, 16 do
+	local dot = Instance.new("Part")
+	dot.Name = "Dot_" .. i
+	dot.Shape = Enum.PartType.Ball
+	dot.Size = Vector3.one * (0.45 - i * 0.018)
+	dot.Color = Color3.fromRGB(250, 204, 21)
+	dot.Material = Enum.Material.Neon
+	dot.Anchored = true
+	dot.CanCollide = false
+	dot.Transparency = 1
+	dot.Parent = previewFolder
+	previewDots[i] = dot
+end
+
+local function hidePreview()
+	for _, dot in ipairs(previewDots) do
+		dot.Transparency = 1
+	end
+end
+
+-- Listen for ball owner & match mode updates
+Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, _vel, _spin, ownerId: number)
+	ballOwnerId = ownerId
+end)
+
+Network.GetEvent("MatchStateUpdate").OnClientEvent:Connect(function(state)
+	if state and state.Mode then
+		currentMode = state.Mode
+	end
+end)
+
+local function getHRP(): BasePart?
+	local char = player.Character
+	return char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function getHumanoid(): Humanoid?
+	local char = player.Character
+	return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function findThroughBallTarget(hrp: BasePart, camDir: Vector3): Vector3
+	local bestScore = -math.huge
+	local bestDir = camDir
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player and other.Team == player.Team and other.Character then
+			local oHrp = other.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if oHrp then
+				local toMate = oHrp.Position - hrp.Position
+				local dist = toMate.Magnitude
+				if dist > 8 and dist < 140 then
+					local align = toMate.Unit:Dot(camDir)
+					if align > 0.35 then
+						-- Lead the pass ahead of teammate's velocity
+						local leadPos = oHrp.Position + oHrp.AssemblyLinearVelocity * 0.65
+						local score = align * 100 - dist * 0.25
+						if score > bestScore then
+							bestScore = score
+							bestDir = (leadPos - hrp.Position).Unit
+						end
+					end
+				end
+			end
+		end
+	end
+	return Vector3.new(bestDir.X, 0, bestDir.Z).Unit
+end
+
+local function getAimDirection(): Vector3
+	local hrp = getHRP()
+	if not hrp or not camera then
+		return Vector3.new(0, 0, 1)
+	end
+	local look = camera.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	if flat.Magnitude < 0.01 then
+		return hrp.CFrame.LookVector
+	end
+	return flat.Unit
+end
+
+local function releaseKick()
+	if not chargingKick then
+		return
+	end
+	local kickType = chargingKick
+	chargingKick = nil
+	hidePreview()
+
+	local hrp = getHRP()
+	if not hrp then
+		return
+	end
+
+	local dir = getAimDirection()
+	if kickType == "ThroughBall" then
+		dir = findThroughBallTarget(hrp, dir)
+	end
+
+	Network.GetEvent("KickRequest"):FireServer(kickType, dir, math.clamp(chargePower, 0.15, 1), curveAmount)
+	chargePower = 0
+	curveAmount = 0
+	player:SetAttribute("KickCharge", 0)
+	player:SetAttribute("KickCurve", 0)
+end
+
+-- Input Handling
+UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	if gameProcessed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.LeftShift then
+		isSprinting = true
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.E then
+		chargingKick = "Shoot"
+		chargePower = 0.15
+		curveAmount = 0
+	elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.Q then
+		chargingKick = "Lob"
+		chargePower = 0.15
+		curveAmount = 0
+	elseif input.KeyCode == Enum.KeyCode.F then
+		chargingKick = "ThroughBall"
+		chargePower = 0.2
+		curveAmount = 0
+	elseif input.KeyCode == Enum.KeyCode.R then
+		if os.clock() - lastTackleTime >= Config.Kicks.TackleCooldown then
+			lastTackleTime = os.clock()
+			local hrp = getHRP()
+			if hrp then
+				hrp.AssemblyLinearVelocity = hrp.CFrame.LookVector * Config.Kicks.TackleImpulse + Vector3.new(0, 8, 0)
+				Network.GetEvent("TackleRequest"):FireServer()
+			end
+		end
+	elseif input.KeyCode == Enum.KeyCode.Space then
+		-- Goalkeeper Dive if inside either penalty box
+		local hrp = getHRP()
+		if hrp and os.clock() - lastDiveTime >= Config.Kicks.DiveCooldown then
+			local modeCfg = Config.MatchModes[currentMode]
+			local halfL = modeCfg.PitchLength * 0.5
+			local inBox = math.abs(hrp.Position.Z) >= (halfL - Config.Kicks.GKBoxDepth)
+				and math.abs(hrp.Position.X) <= (Config.Kicks.GKBoxWidth * 0.5)
+			if inBox then
+				lastDiveTime = os.clock()
+				local hum = getHumanoid()
+				local moveDir = if hum and hum.MoveDirection.Magnitude > 0.1 then hum.MoveDirection.Unit else getAimDirection()
+				hrp.AssemblyLinearVelocity = moveDir * Config.Kicks.DiveSpeed + Vector3.new(0, Config.Kicks.DiveUpward, 0)
+				Network.GetEvent("GKDiveRequest"):FireServer(moveDir)
+			end
+		end
+	elseif input.KeyCode == Enum.KeyCode.G then
+		Network.GetEvent("CelebrationTrigger"):FireServer()
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input: InputObject)
+	if input.KeyCode == Enum.KeyCode.LeftShift then
+		isSprinting = false
+	elseif
+		(input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.E)
+		and chargingKick == "Shoot"
+	then
+		releaseKick()
+	elseif
+		(input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.Q)
+		and chargingKick == "Lob"
+	then
+		releaseKick()
+	elseif input.KeyCode == Enum.KeyCode.F and chargingKick == "ThroughBall" then
+		releaseKick()
+	end
+end)
+
+-- Frame Loop: Stamina, Speed, Kick Charge, and Live Curve Trajectory Preview
+RunService.RenderStepped:Connect(function(dt: number)
+	local hum = getHumanoid()
+	local hasBall = (ballOwnerId == player.UserId)
+
+	if hum then
+		if isSprinting and hum.MoveDirection.Magnitude > 0.1 and stamina > 2 then
+			stamina = math.max(0, stamina - Config.Stamina.SprintDrainPerSec * dt)
+			hum.WalkSpeed = if hasBall then Config.Stamina.DribbleSprintSpeed else Config.Stamina.SprintSpeed
+		else
+			stamina = math.min(Config.Stamina.Max, stamina + Config.Stamina.RegenPerSec * dt)
+			hum.WalkSpeed = if hasBall then Config.Stamina.DribbleWalkSpeed else Config.Stamina.BaseWalkSpeed
+		end
+	end
+	player:SetAttribute("Stamina", stamina)
+
+	if chargingKick then
+		chargePower = math.min(1, chargePower + Config.Kicks.ChargeRate * dt)
+
+		-- Adjust curve spin with A / D keys while charging
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+			curveAmount = math.max(-1, curveAmount - 2.2 * dt)
+		elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
+			curveAmount = math.min(1, curveAmount + 2.2 * dt)
+		end
+
+		player:SetAttribute("KickCharge", chargePower)
+		player:SetAttribute("KickCurve", curveAmount)
+
+		-- Render live curved trajectory preview from ball position
+		local ball = Workspace:FindFirstChild("SoccerBall") :: BasePart?
+		local hrp = getHRP()
+		if ball and hrp and (ball.Position - hrp.Position).Magnitude < 12 then
+			local dir = getAimDirection()
+			if chargingKick == "ThroughBall" then
+				dir = findThroughBallTarget(hrp, dir)
+			end
+			local maxS = if chargingKick == "Lob"
+				then Config.Kicks.MaxLobPower
+				elseif chargingKick == "ThroughBall" then Config.Kicks.MaxThroughBallPower
+				else Config.Kicks.MaxShotPower
+			local speed = Config.Kicks.MinPower + (maxS - Config.Kicks.MinPower) * chargePower
+			local loft = if chargingKick == "Lob" then (0.55 + 0.2 * chargePower) else (0.22 + 0.18 * chargePower)
+			local launchVel = Vector3.new(dir.X, loft, dir.Z).Unit * speed
+			local spin = Vector3.new(0, curveAmount * Config.Kicks.MaxSpin * (0.4 + 0.6 * chargePower), 0)
+
+			local modeCfg = Config.MatchModes[currentMode]
+			local pts = BallPhysics.PredictTrajectory(
+				ball.Position,
+				launchVel,
+				spin,
+				#previewDots,
+				0.06,
+				modeCfg.PitchLength * 0.5,
+				modeCfg.PitchWidth * 0.5
+			)
+			for i, pt in ipairs(pts) do
+				previewDots[i].Position = pt
+				previewDots[i].Transparency = 0.25 + (i / #previewDots) * 0.55
+			end
+		else
+			hidePreview()
+		end
+	end
+end)
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="LocalScript" referent="RBX000012">
+      <Properties>
+        <string name="Name">VFXController</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- VFXController.client.luau
+-- Stadium atmosphere, ball speed/curve trail, goal fireworks/confetti, and trophy ceremony FX.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Network = require(ReplicatedStorage.Shared.Network)
+
+local trailAttached = false
+local ballTrail: Trail? = nil
+
+local function attachBallVFX()
+	local ball = Workspace:FindFirstChild("SoccerBall")
+	if not ball or not ball:IsA("BasePart") or trailAttached then
+		return
+	end
+	trailAttached = true
+
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0, 0.7, 0)
+	a0.Parent = ball
+
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, -0.7, 0)
+	a1.Parent = ball
+
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Lifetime = 0.35
+	trail.MinLength = 0.2
+	trail.Color = ColorSequence.new(Color3.fromRGB(250, 204, 21), Color3.fromRGB(255, 255, 255))
+	trail.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.25),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	trail.Enabled = false
+	trail.Parent = ball
+	ballTrail = trail
+end
+
+Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, vel: Vector3, spin: Vector3)
+	attachBallVFX()
+	if ballTrail then
+		local fast = vel.Magnitude > 52
+		ballTrail.Enabled = fast
+		if spin.Magnitude > 5 then
+			ballTrail.Color = ColorSequence.new(Color3.fromRGB(56, 189, 248), Color3.fromRGB(250, 204, 21))
+		else
+			ballTrail.Color = ColorSequence.new(Color3.fromRGB(250, 204, 21), Color3.fromRGB(255, 255, 255))
+		end
+	end
+end)
+
+local function burstConfetti(position: Vector3, count: number)
+	local emitterPart = Instance.new("Part")
+	emitterPart.Size = Vector3.one
+	emitterPart.Position = position
+	emitterPart.Anchored = true
+	emitterPart.CanCollide = false
+	emitterPart.Transparency = 1
+	emitterPart.Parent = Workspace
+
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(250, 204, 21)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(56, 189, 248)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(239, 68, 68)),
+	})
+	pe.Size = NumberSequence.new(0.65)
+	pe.Speed = NumberRange.new(25, 55)
+	pe.SpreadAngle = Vector2.new(65, 65)
+	pe.Lifetime = NumberRange.new(2.2, 3.5)
+	pe.Acceleration = Vector3.new(0, -24, 0)
+	pe.Rate = 0
+	pe.Parent = emitterPart
+	pe:Emit(count)
+
+	task.delay(4, function()
+		emitterPart:Destroy()
+	end)
+end
+
+Network.GetEvent("GoalScoredVFX").OnClientEvent:Connect(function()
+	local ball = Workspace:FindFirstChild("SoccerBall")
+	if ball and ball:IsA("BasePart") then
+		burstConfetti(ball.Position + Vector3.new(0, 3, 0), 90)
+	end
+end)
+
+Network.GetEvent("TrophyCeremonyStart").OnClientEvent:Connect(function()
+	for i = 1, 5 do
+		task.delay((i - 1) * 1.2, function()
+			burstConfetti(Vector3.new(0, 12, 0), 120)
+			burstConfetti(Vector3.new(-15, 10, 0), 70)
+			burstConfetti(Vector3.new(15, 10, 0), 70)
+		end)
+	end
+end)
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    </Item>
+  </Item>
+</roblox>
