@@ -1,6 +1,6 @@
 --!strict
 -- VFXController.client.luau
--- Stadium atmosphere, ball speed/curve trail, goal fireworks/confetti, and trophy ceremony FX.
+-- Stadium atmosphere, ball curve trails, animated 3D cheering fans, goal confetti, and trophy ceremony fireworks.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -82,14 +82,47 @@ local function burstConfetti(position: Vector3, count: number)
 	end)
 end
 
+-- Animate 3D Fans jumping in the stands on goal!
+local function cheerFans()
+	local stands = Workspace:FindFirstChild("Stadium") and Workspace.Stadium:FindFirstChild("Stands")
+	if not stands then
+		return
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while os.clock() - t0 < 3.5 do
+			local bounce = math.abs(math.sin((os.clock() - t0) * 9)) * 1.4
+			for _, obj in ipairs(stands:GetChildren()) do
+				if obj:IsA("BasePart") and obj:GetAttribute("IsFan") then
+					local baseY = obj:GetAttribute("BaseY") :: number?
+					if baseY then
+						obj.Position = Vector3.new(obj.Position.X, baseY + bounce, obj.Position.Z)
+					end
+				end
+			end
+			task.wait(0.04)
+		end
+		for _, obj in ipairs(stands:GetChildren()) do
+			if obj:IsA("BasePart") and obj:GetAttribute("IsFan") then
+				local baseY = obj:GetAttribute("BaseY") :: number?
+				if baseY then
+					obj.Position = Vector3.new(obj.Position.X, baseY, obj.Position.Z)
+				end
+			end
+		end
+	end)
+end
+
 Network.GetEvent("GoalScoredVFX").OnClientEvent:Connect(function()
 	local ball = Workspace:FindFirstChild("SoccerBall")
 	if ball and ball:IsA("BasePart") then
 		burstConfetti(ball.Position + Vector3.new(0, 3, 0), 90)
 	end
+	cheerFans()
 end)
 
 Network.GetEvent("TrophyCeremonyStart").OnClientEvent:Connect(function()
+	cheerFans()
 	for i = 1, 5 do
 		task.delay((i - 1) * 1.2, function()
 			burstConfetti(Vector3.new(0, 12, 0), 120)

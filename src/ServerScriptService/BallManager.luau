@@ -1,6 +1,6 @@
 --!strict
 -- BallManager.luau
--- Server-authoritative soccer ball simulation, dribbling, kicks, saves, tackles, and goal/OOB detection.
+-- Server-authoritative soccer ball simulation, click-to-target kicks, AI Goalkeepers, training balls, and goal detection.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +10,7 @@ local Workspace = game:GetService("Workspace")
 local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Network = require(ReplicatedStorage.Shared.Network)
+local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
 
 local BallManager = {}
 
@@ -32,6 +33,7 @@ local divingPlayers: { [number]: number } = {}
 
 local onGoalCallback: ((scoringTeam: "Home" | "Away", scorer: Player?, assister: Player?) -> ())? = nil
 local onSaveCallback: ((keeper: Player) -> ())? = nil
+local onAISaveCallback: (() -> ())? = nil
 local onSetPieceCallback: ((kind: string, spot: Vector3, team: "Home" | "Away") -> ())? = nil
 
 local function ensureBallPart(): Part
@@ -54,7 +56,6 @@ local function ensureBallPart(): Part
 	p.CanCollide = false
 	p.CastShadow = true
 
-	-- Subtle match-ball stripe accent
 	local highlight = Instance.new("Highlight")
 	highlight.FillTransparency = 1
 	highlight.OutlineColor = Color3.fromRGB(250, 204, 21)
@@ -115,18 +116,20 @@ end
 function BallManager.Init(
 	onGoal: (scoringTeam: "Home" | "Away", scorer: Player?, assister: Player?) -> (),
 	onSave: (keeper: Player) -> (),
+	onAISave: () -> (),
 	onSetPiece: (kind: string, spot: Vector3, team: "Home" | "Away") -> ()
 )
 	onGoalCallback = onGoal
 	onSaveCallback = onSave
+	onAISaveCallback = onAISave
 	onSetPieceCallback = onSetPiece
 
 	ensureBallPart()
 	BallManager.ResetToSpot(Vector3.zero, false)
 
-	-- Kick / Pass / Through-Ball / Curving Free Kick
+	-- Kick / Pass / Through-Ball / Click-to-Target Shot
 	Network.GetEvent("KickRequest").OnServerEvent:Connect(
-		function(player: Player, kickType: string, direction: Vector3, powerRatio: number, curveAmount: number)
+		function(player: Player, kickType: string, direction: Vector3, powerRatio: number, curveAmount: number, targetPos: Vector3?)
 			if typeof(direction) ~= "Vector3" or type(powerRatio) ~= "number" or type(curveAmount) ~= "number" then
 				return
 			end
@@ -137,11 +140,10 @@ function BallManager.Init(
 			end
 
 			local dist = (hrp.Position - ballState.Position).Magnitude
-			if ownerPlayer ~= player and dist > 11 then
+			if ownerPlayer ~= player and dist > 12 then
 				return
 			end
 
-			local dir = direction.Magnitude > 0.01 and direction.Unit or hrp.CFrame.LookVector
 			local pwr = math.clamp(powerRatio, 0.1, 1)
 			local curve = math.clamp(curveAmount, -1, 1)
 
@@ -149,21 +151,38 @@ function BallManager.Init(
 			local loft = 0.18
 			if kickType == "Shoot" or kickType == "FreeKick" then
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr
-				loft = 0.22 + 0.18 * pwr
+				loft = 0.18 + 0.18 * pwr
 			elseif kickType == "Lob" then
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxLobPower - Config.Kicks.MinPower) * pwr
-				loft = 0.55 + 0.2 * pwr
+				loft = 0.52 + 0.2 * pwr
 			elseif kickType == "ThroughBall" then
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxThroughBallPower - Config.Kicks.MinPower) * pwr
 				loft = 0.08
-			else -- Pass
+			else
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxPassPower - Config.Kicks.MinPower) * pwr
 				loft = 0.06
 			end
 
-			local launchDir = Vector3.new(dir.X, loft, dir.Z).Unit
+			local launchDir: Vector3
+			if typeof(targetPos) == "Vector3" then
+				local toTarget = targetPos - ballState.Position
+				local horizDist = Vector3.new(toTarget.X, 0, toTarget.Z).Magnitude
+				if horizDist > 0.5 then
+					-- Aim directly at clicked point with subtle gravity compensation arc
+					local heightDiff = math.clamp(targetPos.Y - ballState.Position.Y, -2, 18)
+					local arcLift = math.clamp(horizDist * 0.0045 + heightDiff / math.max(horizDist, 8), 0.05, 0.55)
+					local flat = Vector3.new(toTarget.X, 0, toTarget.Z).Unit
+					launchDir = Vector3.new(flat.X, arcLift, flat.Z).Unit
+				else
+					local dir = if direction.Magnitude > 0.01 then direction.Unit else hrp.CFrame.LookVector
+					launchDir = Vector3.new(dir.X, loft, dir.Z).Unit
+				end
+			else
+				local dir = if direction.Magnitude > 0.01 then direction.Unit else hrp.CFrame.LookVector
+				launchDir = Vector3.new(dir.X, loft, dir.Z).Unit
+			end
+
 			ballState.Velocity = launchDir * speed
-			-- Vertical spin axis produces horizontal Magnus curve
 			ballState.Spin = Vector3.new(0, curve * Config.Kicks.MaxSpin * (0.4 + 0.6 * pwr), 0)
 
 			ownerPlayer = nil
@@ -174,7 +193,30 @@ function BallManager.Init(
 		end
 	)
 
-	-- Dribble release / toggle
+	-- Lobby Training Pitch Ball Kick
+	Network.GetEvent("TrainingBallKick").OnServerEvent:Connect(function(player: Player, ballInst: Instance, targetPos: Vector3, powerRatio: number)
+		if typeof(ballInst) ~= "Instance" or not ballInst:IsA("BasePart") or not ballInst:GetAttribute("IsTrainingBall") then
+			return
+		end
+		if typeof(targetPos) ~= "Vector3" or type(powerRatio) ~= "number" then
+			return
+		end
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not hrp or (hrp.Position - ballInst.Position).Magnitude > 14 then
+			return
+		end
+		local toTarget = targetPos - ballInst.Position
+		local flat = Vector3.new(toTarget.X, 0, toTarget.Z)
+		if flat.Magnitude < 0.2 then
+			flat = hrp.CFrame.LookVector
+		end
+		local pwr = math.clamp(powerRatio, 0.2, 1)
+		local speed = Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr
+		local arc = math.clamp(flat.Magnitude * 0.005 + (targetPos.Y - ballInst.Position.Y) / math.max(flat.Magnitude, 8), 0.12, 0.5)
+		ballInst.AssemblyLinearVelocity = Vector3.new(flat.Unit.X, arc, flat.Unit.Z).Unit * speed
+	end)
+
 	Network.GetEvent("DribbleToggle").OnServerEvent:Connect(function(player: Player)
 		if ownerPlayer == player then
 			ownerPlayer = nil
@@ -183,7 +225,6 @@ function BallManager.Init(
 		end
 	end)
 
-	-- Slide Tackle / Steal
 	Network.GetEvent("TackleRequest").OnServerEvent:Connect(function(player: Player)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -204,8 +245,7 @@ function BallManager.Init(
 		end
 	end)
 
-	-- Goalkeeper Dive
-	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, diveDir: Vector3)
+	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, _diveDir: Vector3)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if not hrp then
@@ -217,7 +257,6 @@ function BallManager.Init(
 		end
 	end)
 
-	-- Main Physics Loop
 	local broadcastAccum = 0
 	RunService.Heartbeat:Connect(function(dt: number)
 		local stepDt = math.min(dt, 0.05)
@@ -227,7 +266,6 @@ function BallManager.Init(
 		local now = os.clock()
 
 		if not ballFrozen then
-			-- 1. Handle Dribble Ownership
 			if ownerPlayer then
 				local char = ownerPlayer.Character
 				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -242,10 +280,19 @@ function BallManager.Init(
 					ballState.Spin = Vector3.zero
 				end
 			else
-				-- 2. Free Ball Physics
 				ballState = BallPhysics.Step(ballState, stepDt, halfL, halfW)
 
-				-- 3. Check Goalkeeper Diving Saves & Player Pickups
+				-- AI Goalkeepers step & save check
+				local aiSaved, clearVel = GoalkeeperAI.Step(stepDt, ballState.Position, ballState.Velocity, currentMode)
+				if aiSaved and clearVel then
+					ballState.Velocity = clearVel
+					ballState.Spin = Vector3.zero
+					if onAISaveCallback then
+						onAISaveCallback()
+					end
+				end
+
+				-- Player GK & Dribble pickup checks
 				for _, player in ipairs(Players:GetPlayers()) do
 					local char = player.Character
 					local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -253,7 +300,6 @@ function BallManager.Init(
 					if hrp and hum and hum.Health > 0 then
 						local dist = (hrp.Position - ballState.Position).Magnitude
 
-						-- Diving GK save check
 						if divingPlayers[player.UserId] and now < divingPlayers[player.UserId] and dist <= 7.2 then
 							if ballState.Velocity.Magnitude > 22 then
 								divingPlayers[player.UserId] = nil
@@ -268,7 +314,6 @@ function BallManager.Init(
 							end
 						end
 
-						-- Loose ball dribble pickup
 						local cd = stealCooldowns[player.UserId] or 0
 						if now > cd and dist <= Config.Ball.DribbleSnapRange and ballState.Position.Y <= 4.0 and ballState.Velocity.Magnitude < 55 then
 							ownerPlayer = player
@@ -279,12 +324,10 @@ function BallManager.Init(
 				end
 			end
 
-			-- 4. Goal & Out-of-Bounds Detection (only when match is actively playing)
 			if matchPlaying then
 				local p = ballState.Position
 				local halfGoalW = modeCfg.GoalWidth * 0.5
 
-				-- Home Goal at -halfL (Away scores!)
 				if p.Z <= -halfL - Config.Ball.Radius * 0.5 and math.abs(p.X) <= halfGoalW and p.Y <= modeCfg.GoalHeight then
 					matchPlaying = false
 					ballFrozen = true
@@ -292,7 +335,6 @@ function BallManager.Init(
 					if onGoalCallback then
 						onGoalCallback("Away", lastTouchPlayer, assister)
 					end
-				-- Away Goal at +halfL (Home scores!)
 				elseif p.Z >= halfL + Config.Ball.Radius * 0.5 and math.abs(p.X) <= halfGoalW and p.Y <= modeCfg.GoalHeight then
 					matchPlaying = false
 					ballFrozen = true
@@ -300,7 +342,6 @@ function BallManager.Init(
 					if onGoalCallback then
 						onGoalCallback("Home", lastTouchPlayer, assister)
 					end
-				-- Touchline Out-of-Bounds (Throw-in)
 				elseif math.abs(p.X) > halfW + 1.5 then
 					ownerPlayer = nil
 					local clampedZ = math.clamp(p.Z, -halfL + 5, halfL - 5)
@@ -310,7 +351,6 @@ function BallManager.Init(
 					if onSetPieceCallback then
 						onSetPieceCallback("Throw-In", spot, kickingTeam)
 					end
-				-- Endline Out-of-Bounds (Corner or Goal Kick)
 				elseif math.abs(p.Z) > halfL + 2.0 and math.abs(p.X) > halfGoalW then
 					ownerPlayer = nil
 					local endSign = math.sign(p.Z)
@@ -324,7 +364,6 @@ function BallManager.Init(
 			end
 		end
 
-		-- Update physical part
 		local bp = ensureBallPart()
 		local speed = ballState.Velocity.Magnitude
 		if speed > 0.5 then

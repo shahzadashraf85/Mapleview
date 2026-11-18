@@ -1,6 +1,6 @@
 --!strict
 -- HUDController.client.luau
--- Procedurally builds the broadcast scoreboard, power/curve/stamina bars, goal banner, and Club/Shop/Leaderboard UI.
+-- Broadcast scoreboard, power/curve/stamina bars, goal banner, Club/Shop/Leaderboard modal, and Admin Panel (ninja373670).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +15,7 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local currentProfile: any = nil
+local isAdminUser = (player.Name == Config.AdminUsername or RunService:IsStudio())
 
 local function makeCorner(parent: Instance, radius: number)
 	local c = Instance.new("UICorner")
@@ -29,7 +30,6 @@ local function makeStroke(parent: Instance, color: Color3, thickness: number)
 	s.Parent = parent
 end
 
--- Root ScreenGui
 local gui = Instance.new("ScreenGui")
 gui.Name = "FIFASoccerHUD"
 gui.ResetOnSpawn = false
@@ -92,7 +92,7 @@ local statusLbl = Instance.new("TextLabel")
 statusLbl.Size = UDim2.new(1, -16, 0, 20)
 statusLbl.Position = UDim2.fromOffset(8, 45)
 statusLbl.BackgroundTransparency = 1
-statusLbl.Text = "Warmup — Next Match Starting Soon"
+statusLbl.Text = "Lobby Training Pitch — Next Match Starting Soon"
 statusLbl.TextColor3 = Color3.fromRGB(203, 213, 225)
 statusLbl.Font = Enum.Font.GothamSemibold
 statusLbl.TextSize = 13
@@ -143,7 +143,7 @@ local controlsHint = Instance.new("TextLabel")
 controlsHint.Size = UDim2.new(1, -16, 0, 32)
 controlsHint.Position = UDim2.fromOffset(8, 82)
 controlsHint.BackgroundTransparency = 1
-controlsHint.Text = "LMB/E: Shoot | F: Through-Ball | RMB/Q: Lob\nA/D: Curve | R: Tackle | Space: GK Dive | G: Celebrate"
+controlsHint.Text = "Click & Hold: Aim & Shoot | F: Through-Ball | RMB: Lob\nA/D: Curve | R: Tackle | Space: GK Dive | G: Celebrate"
 controlsHint.TextColor3 = Color3.fromRGB(148, 163, 184)
 controlsHint.Font = Enum.Font.Gotham
 controlsHint.TextSize = 10
@@ -319,7 +319,6 @@ local function renderTab()
 	coinsLbl.Text = string.format("Coins: %d | ELO: %d", prof.Coins or 0, prof.ELO or 1000)
 
 	if activeTab == "Squad" then
-		-- Club Name Editor
 		local clubBox = Instance.new("TextBox")
 		clubBox.Size = UDim2.new(1, -8, 0, 42)
 		clubBox.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
@@ -444,6 +443,93 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 end)
 
+-- 5. ADMIN PANEL (Strictly for ninja373670)
+if isAdminUser then
+	local adminBtn = Instance.new("TextButton")
+	adminBtn.Size = UDim2.fromOffset(140, 38)
+	adminBtn.Position = UDim2.new(1, -340, 0, 16)
+	adminBtn.BackgroundColor3 = Color3.fromRGB(127, 29, 29)
+	adminBtn.Text = "ADMIN [P]"
+	adminBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+	adminBtn.Font = Enum.Font.GothamBlack
+	adminBtn.TextSize = 13
+	adminBtn.Parent = gui
+	makeCorner(adminBtn, 10)
+	makeStroke(adminBtn, Color3.fromRGB(239, 68, 68), 1.5)
+
+	local adminPanel = Instance.new("Frame")
+	adminPanel.Size = UDim2.fromOffset(310, 430)
+	adminPanel.Position = UDim2.new(0, 18, 0.5, -215)
+	adminPanel.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+	adminPanel.BackgroundTransparency = 0.05
+	adminPanel.Visible = false
+	adminPanel.Parent = gui
+	makeCorner(adminPanel, 14)
+	makeStroke(adminPanel, Color3.fromRGB(239, 68, 68), 2)
+
+	local aTitle = Instance.new("TextLabel")
+	aTitle.Size = UDim2.new(1, -20, 0, 36)
+	aTitle.Position = UDim2.fromOffset(10, 6)
+	aTitle.BackgroundTransparency = 1
+	aTitle.Text = "ADMIN PANEL (ninja373670)"
+	aTitle.TextColor3 = Color3.fromRGB(250, 204, 21)
+	aTitle.Font = Enum.Font.GothamBlack
+	aTitle.TextSize = 15
+	aTitle.Parent = adminPanel
+
+	local aScroll = Instance.new("ScrollingFrame")
+	aScroll.Size = UDim2.new(1, -20, 1, -52)
+	aScroll.Position = UDim2.fromOffset(10, 44)
+	aScroll.BackgroundTransparency = 1
+	aScroll.ScrollBarThickness = 5
+	aScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	aScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	aScroll.Parent = adminPanel
+
+	local aList = Instance.new("UIListLayout")
+	aList.Padding = UDim.new(0, 6)
+	aList.Parent = aScroll
+
+	local function addAdminBtn(label: string, color: Color3, cmd: string, arg: any)
+		local b = Instance.new("TextButton")
+		b.Size = UDim2.new(1, -6, 0, 34)
+		b.BackgroundColor3 = color
+		b.Text = label
+		b.TextColor3 = Color3.new(1, 1, 1)
+		b.Font = Enum.Font.GothamBold
+		b.TextSize = 13
+		b.Parent = aScroll
+		makeCorner(b, 8)
+		b.MouseButton1Click:Connect(function()
+			Network.GetEvent("AdminCommand"):FireServer(cmd, arg)
+		end)
+	end
+
+	addAdminBtn("Give Free Kick (Where I Stand)", Color3.fromRGB(217, 119, 6), "FreeKick", nil)
+	addAdminBtn("Give Penalty (Home FC)", Color3.fromRGB(37, 99, 235), "PenaltyHome", nil)
+	addAdminBtn("Give Penalty (Away United)", Color3.fromRGB(220, 38, 38), "PenaltyAway", nil)
+	addAdminBtn("Reset Ball to Center", Color3.fromRGB(51, 65, 85), "ResetBall", nil)
+	addAdminBtn("Skip / Next Match Phase", Color3.fromRGB(22, 163, 74), "SkipPhase", nil)
+	addAdminBtn("+1 Goal Home", Color3.fromRGB(30, 64, 175), "AddGoalHome", nil)
+	addAdminBtn("+1 Goal Away", Color3.fromRGB(153, 27, 27), "AddGoalAway", nil)
+	addAdminBtn("Mode: 5v5 Fast-Paced", Color3.fromRGB(71, 85, 105), "SetMode", "5v5")
+	addAdminBtn("Mode: 11v11 Competitive", Color3.fromRGB(71, 85, 105), "SetMode", "11v11")
+	addAdminBtn("Stadium: Wembley Night", Color3.fromRGB(30, 41, 59), "SetStadium", "WembleyNight")
+	addAdminBtn("Stadium: Golden Sunset", Color3.fromRGB(154, 52, 18), "SetStadium", "SunsetArena")
+	addAdminBtn("Stadium: Alpine Snow", Color3.fromRGB(14, 116, 144), "SetStadium", "AlpineSnow")
+	addAdminBtn("Stadium: Neon Cyber Dome", Color3.fromRGB(88, 28, 135), "SetStadium", "NeonCyber")
+
+	local function toggleAdmin()
+		adminPanel.Visible = not adminPanel.Visible
+	end
+	adminBtn.MouseButton1Click:Connect(toggleAdmin)
+	UserInputService.InputBegan:Connect(function(input, gp)
+		if not gp and input.KeyCode == Enum.KeyCode.P then
+			toggleAdmin()
+		end
+	end)
+end
+
 -- Profile & Match Event Listeners
 task.spawn(function()
 	currentProfile = Network.GetFunction("GetProfile"):InvokeServer()
@@ -484,7 +570,6 @@ Network.GetEvent("GoalScoredVFX").OnClientEvent:Connect(function(info)
 	end)
 end)
 
--- Live Power / Curve / Stamina Bar Updates
 RunService.RenderStepped:Connect(function()
 	local pwr = (player:GetAttribute("KickCharge") :: number?) or 0
 	local crv = (player:GetAttribute("KickCurve") :: number?) or 0

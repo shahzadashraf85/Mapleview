@@ -9,12 +9,12 @@ local Network = {}
 
 local REMOTE_EVENTS = {
 	"BallStateUpdate",     -- Server -> Clients: authoritative ball pos/vel/spin/owner
-	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick
+	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick (with targetPos!)
 	"DribbleToggle",       -- Client -> Server: Request close control or release
 	"TackleRequest",       -- Client -> Server: Slide tackle / steal attempt
 	"GKDiveRequest",       -- Client -> Server: Goalkeeper dive direction
-	"MatchStateUpdate",    -- Server -> Clients: timer, scores, phase, mode, set-piece info
-	"GoalScoredVFX",       -- Server -> Clients: goal banner, net ripple, scorer info
+	"MatchStateUpdate",    -- Server -> Clients: timer, scores, phase, mode, stadium, set-piece info
+	"GoalScoredVFX",       -- Server -> Clients: goal banner, net ripple, scorer info, fan cheer
 	"CelebrationTrigger",  -- Client <-> Server: trigger equipped celebration
 	"TrophyCeremonyStart", -- Server -> Clients: confetti & trophy lift FX
 	"VoteMatchMode",       -- Client -> Server: vote 5v5 or 11v11
@@ -22,6 +22,8 @@ local REMOTE_EVENTS = {
 	"PurchaseItem",        -- Client -> Server: buy kit / celebration
 	"UpdateClubName",      -- Client -> Server: set custom club name
 	"ProfileUpdated",      -- Server -> Client: sync player profile & coins/ELO
+	"AdminCommand",        -- Client -> Server: ninja373670 admin actions (FreeKick, Penalty, Stadium, etc.)
+	"TrainingBallKick",    -- Client -> Server: kick a practice ball on the lobby training pitch
 }
 
 local REMOTE_FUNCTIONS = {

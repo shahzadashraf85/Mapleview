@@ -1,27 +1,27 @@
 <roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
   <External>null</External>
   <External>nil</External>
-  <Item class="Workspace" referent="RBX000013">
+  <Item class="Workspace" referent="RBX000015">
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="FilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="Teams" referent="RBX000014">
+  <Item class="Teams" referent="RBX000016">
     <Properties>
       <string name="Name">Teams</string>
     </Properties>
   </Item>
-  <Item class="Lighting" referent="RBX000015">
+  <Item class="Lighting" referent="RBX000017">
     <Properties>
       <string name="Name">Lighting</string>
     </Properties>
   </Item>
-  <Item class="ReplicatedStorage" referent="RBX000016">
+  <Item class="ReplicatedStorage" referent="RBX000018">
     <Properties>
       <string name="Name">ReplicatedStorage</string>
     </Properties>
-    <Item class="Folder" referent="RBX000017">
+    <Item class="Folder" referent="RBX000019">
       <Properties>
         <string name="Name">Shared</string>
       </Properties>
@@ -277,17 +277,20 @@ return Catalog
         <string name="Name">Config</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- Config.luau
--- Central configuration for pitch dimensions, ball physics, match modes, and controls.
+-- Central configuration for pitch dimensions, ball physics, match modes, stadium themes, lobby, and admin.
 
 local Config = {}
 
 export type MatchMode = "5v5" | "11v11"
+export type StadiumThemeId = "WembleyNight" | "SunsetArena" | "AlpineSnow" | "NeonCyber"
+
+Config.AdminUsername = "ninja373670"
 
 Config.MatchModes = {
 	["5v5"] = {
 		Label = "5v5 Fast-Paced",
 		MaxPlayersPerTeam = 5,
-		HalfDurationSeconds = 150, -- 2m 30s per half
+		HalfDurationSeconds = 150,
 		PitchLength = 220,
 		PitchWidth = 130,
 		GoalWidth = 22,
@@ -296,7 +299,7 @@ Config.MatchModes = {
 	["11v11"] = {
 		Label = "11v11 Competitive",
 		MaxPlayersPerTeam = 11,
-		HalfDurationSeconds = 240, -- 4m per half
+		HalfDurationSeconds = 240,
 		PitchLength = 320,
 		PitchWidth = 190,
 		GoalWidth = 28,
@@ -304,40 +307,81 @@ Config.MatchModes = {
 	},
 }
 
+Config.StadiumThemes = {
+	WembleyNight = {
+		Name = "Wembley Floodlight Night",
+		ClockTime = 21.0,
+		TurfA = Color3.fromRGB(30, 130, 58),
+		TurfB = Color3.fromRGB(36, 148, 68),
+		Accent = Color3.fromRGB(250, 204, 21),
+		StandColor = Color3.fromRGB(24, 30, 44),
+		Ambient = Color3.fromRGB(50, 60, 80),
+	},
+	SunsetArena = {
+		Name = "Golden Sunset Arena",
+		ClockTime = 17.8,
+		TurfA = Color3.fromRGB(42, 145, 56),
+		TurfB = Color3.fromRGB(50, 162, 65),
+		Accent = Color3.fromRGB(249, 115, 22),
+		StandColor = Color3.fromRGB(45, 36, 40),
+		Ambient = Color3.fromRGB(115, 85, 70),
+	},
+	AlpineSnow = {
+		Name = "Alpine Winter Bowl",
+		ClockTime = 15.0,
+		TurfA = Color3.fromRGB(72, 152, 108),
+		TurfB = Color3.fromRGB(84, 166, 120),
+		Accent = Color3.fromRGB(56, 189, 248),
+		StandColor = Color3.fromRGB(203, 213, 225),
+		Ambient = Color3.fromRGB(140, 165, 190),
+	},
+	NeonCyber = {
+		Name = "Neon Cyber Dome",
+		ClockTime = 22.5,
+		TurfA = Color3.fromRGB(16, 78, 68),
+		TurfB = Color3.fromRGB(20, 94, 82),
+		Accent = Color3.fromRGB(0, 255, 170),
+		StandColor = Color3.fromRGB(15, 15, 28),
+		Ambient = Color3.fromRGB(40, 35, 75),
+	},
+}
+
 Config.DefaultMode = "5v5" :: MatchMode
-Config.IntermissionSeconds = 15
+Config.DefaultStadium = "WembleyNight" :: StadiumThemeId
+Config.IntermissionSeconds = 18
 Config.GoalCelebrationSeconds = 6
 Config.HalfTimeSeconds = 10
 Config.TrophyCeremonySeconds = 14
 
--- Stadium origin (center of pitch surface)
+-- World Positions
 Config.PitchCenter = Vector3.new(0, 0, 0)
+Config.LobbyCenter = Vector3.new(340, 0, 0)
 Config.TurfThickness = 2
 
 -- Ball Physics Constants
 Config.Ball = {
 	Radius = 1.45,
-	Gravity = 68,              -- Studs/s^2 (tuned for crisp Roblox arc)
-	AirDrag = 0.22,            -- Linear aerodynamic drag
-	MagnusCoefficient = 0.042, -- Spin-to-curve acceleration factor
-	GrassFriction = 0.985,     -- Ground roll damping per 60Hz tick
-	BounceRestitution = 0.62,  -- Vertical bounce elasticity
-	SpinDecay = 0.992,         -- Spin decay per tick
+	Gravity = 68,
+	AirDrag = 0.22,
+	MagnusCoefficient = 0.042,
+	GrassFriction = 0.985,
+	BounceRestitution = 0.62,
+	SpinDecay = 0.992,
 	MaxSpeed = 165,
-	DribbleDistance = 4.2,     -- Studs in front of player when dribbling
-	DribbleSnapRange = 6.5,    -- Range to pick up loose ball
-	StealCooldown = 0.65,      -- Seconds after being tackled before re-grabbing
+	DribbleDistance = 4.2,
+	DribbleSnapRange = 6.5,
+	StealCooldown = 0.65,
 }
 
 -- Kick & Mechanics Constants
 Config.Kicks = {
-	MinPower = 38,
-	MaxShotPower = 138,
-	MaxPassPower = 88,
-	MaxThroughBallPower = 98,
-	MaxLobPower = 112,
-	MaxSpin = 28, -- rad/s equivalent for Magnus curve
-	ChargeRate = 1.35, -- Full charge in ~0.75s
+	MinPower = 42,
+	MaxShotPower = 142,
+	MaxPassPower = 90,
+	MaxThroughBallPower = 100,
+	MaxLobPower = 115,
+	MaxSpin = 28,
+	ChargeRate = 1.35,
 	TackleImpulse = 58,
 	TackleRange = 7.5,
 	TackleCooldown = 1.6,
@@ -404,12 +448,12 @@ local Network = {}
 
 local REMOTE_EVENTS = {
 	"BallStateUpdate",     -- Server -> Clients: authoritative ball pos/vel/spin/owner
-	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick
+	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick (with targetPos!)
 	"DribbleToggle",       -- Client -> Server: Request close control or release
 	"TackleRequest",       -- Client -> Server: Slide tackle / steal attempt
 	"GKDiveRequest",       -- Client -> Server: Goalkeeper dive direction
-	"MatchStateUpdate",    -- Server -> Clients: timer, scores, phase, mode, set-piece info
-	"GoalScoredVFX",       -- Server -> Clients: goal banner, net ripple, scorer info
+	"MatchStateUpdate",    -- Server -> Clients: timer, scores, phase, mode, stadium, set-piece info
+	"GoalScoredVFX",       -- Server -> Clients: goal banner, net ripple, scorer info, fan cheer
 	"CelebrationTrigger",  -- Client <-> Server: trigger equipped celebration
 	"TrophyCeremonyStart", -- Server -> Clients: confetti & trophy lift FX
 	"VoteMatchMode",       -- Client -> Server: vote 5v5 or 11v11
@@ -417,6 +461,8 @@ local REMOTE_EVENTS = {
 	"PurchaseItem",        -- Client -> Server: buy kit / celebration
 	"UpdateClubName",      -- Client -> Server: set custom club name
 	"ProfileUpdated",      -- Server -> Client: sync player profile & coins/ELO
+	"AdminCommand",        -- Client -> Server: ninja373670 admin actions (FreeKick, Penalty, Stadium, etc.)
+	"TrainingBallKick",    -- Client -> Server: kick a practice ball on the lobby training pitch
 }
 
 local REMOTE_FUNCTIONS = {
@@ -477,7 +523,7 @@ return Network
     </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="RBX000018">
+  <Item class="ServerScriptService" referent="RBX000020">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
@@ -486,7 +532,7 @@ return Network
         <string name="Name">BallManager</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- BallManager.luau
--- Server-authoritative soccer ball simulation, dribbling, kicks, saves, tackles, and goal/OOB detection.
+-- Server-authoritative soccer ball simulation, click-to-target kicks, AI Goalkeepers, training balls, and goal detection.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -496,6 +542,7 @@ local Workspace = game:GetService("Workspace")
 local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Network = require(ReplicatedStorage.Shared.Network)
+local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
 
 local BallManager = {}
 
@@ -518,6 +565,7 @@ local divingPlayers: { [number]: number } = {}
 
 local onGoalCallback: ((scoringTeam: "Home" | "Away", scorer: Player?, assister: Player?) -> ())? = nil
 local onSaveCallback: ((keeper: Player) -> ())? = nil
+local onAISaveCallback: (() -> ())? = nil
 local onSetPieceCallback: ((kind: string, spot: Vector3, team: "Home" | "Away") -> ())? = nil
 
 local function ensureBallPart(): Part
@@ -540,7 +588,6 @@ local function ensureBallPart(): Part
 	p.CanCollide = false
 	p.CastShadow = true
 
-	-- Subtle match-ball stripe accent
 	local highlight = Instance.new("Highlight")
 	highlight.FillTransparency = 1
 	highlight.OutlineColor = Color3.fromRGB(250, 204, 21)
@@ -601,18 +648,20 @@ end
 function BallManager.Init(
 	onGoal: (scoringTeam: "Home" | "Away", scorer: Player?, assister: Player?) -> (),
 	onSave: (keeper: Player) -> (),
+	onAISave: () -> (),
 	onSetPiece: (kind: string, spot: Vector3, team: "Home" | "Away") -> ()
 )
 	onGoalCallback = onGoal
 	onSaveCallback = onSave
+	onAISaveCallback = onAISave
 	onSetPieceCallback = onSetPiece
 
 	ensureBallPart()
 	BallManager.ResetToSpot(Vector3.zero, false)
 
-	-- Kick / Pass / Through-Ball / Curving Free Kick
+	-- Kick / Pass / Through-Ball / Click-to-Target Shot
 	Network.GetEvent("KickRequest").OnServerEvent:Connect(
-		function(player: Player, kickType: string, direction: Vector3, powerRatio: number, curveAmount: number)
+		function(player: Player, kickType: string, direction: Vector3, powerRatio: number, curveAmount: number, targetPos: Vector3?)
 			if typeof(direction) ~= "Vector3" or type(powerRatio) ~= "number" or type(curveAmount) ~= "number" then
 				return
 			end
@@ -623,11 +672,10 @@ function BallManager.Init(
 			end
 
 			local dist = (hrp.Position - ballState.Position).Magnitude
-			if ownerPlayer ~= player and dist > 11 then
+			if ownerPlayer ~= player and dist > 12 then
 				return
 			end
 
-			local dir = direction.Magnitude > 0.01 and direction.Unit or hrp.CFrame.LookVector
 			local pwr = math.clamp(powerRatio, 0.1, 1)
 			local curve = math.clamp(curveAmount, -1, 1)
 
@@ -635,21 +683,38 @@ function BallManager.Init(
 			local loft = 0.18
 			if kickType == "Shoot" or kickType == "FreeKick" then
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr
-				loft = 0.22 + 0.18 * pwr
+				loft = 0.18 + 0.18 * pwr
 			elseif kickType == "Lob" then
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxLobPower - Config.Kicks.MinPower) * pwr
-				loft = 0.55 + 0.2 * pwr
+				loft = 0.52 + 0.2 * pwr
 			elseif kickType == "ThroughBall" then
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxThroughBallPower - Config.Kicks.MinPower) * pwr
 				loft = 0.08
-			else -- Pass
+			else
 				speed = Config.Kicks.MinPower + (Config.Kicks.MaxPassPower - Config.Kicks.MinPower) * pwr
 				loft = 0.06
 			end
 
-			local launchDir = Vector3.new(dir.X, loft, dir.Z).Unit
+			local launchDir: Vector3
+			if typeof(targetPos) == "Vector3" then
+				local toTarget = targetPos - ballState.Position
+				local horizDist = Vector3.new(toTarget.X, 0, toTarget.Z).Magnitude
+				if horizDist > 0.5 then
+					-- Aim directly at clicked point with subtle gravity compensation arc
+					local heightDiff = math.clamp(targetPos.Y - ballState.Position.Y, -2, 18)
+					local arcLift = math.clamp(horizDist * 0.0045 + heightDiff / math.max(horizDist, 8), 0.05, 0.55)
+					local flat = Vector3.new(toTarget.X, 0, toTarget.Z).Unit
+					launchDir = Vector3.new(flat.X, arcLift, flat.Z).Unit
+				else
+					local dir = if direction.Magnitude > 0.01 then direction.Unit else hrp.CFrame.LookVector
+					launchDir = Vector3.new(dir.X, loft, dir.Z).Unit
+				end
+			else
+				local dir = if direction.Magnitude > 0.01 then direction.Unit else hrp.CFrame.LookVector
+				launchDir = Vector3.new(dir.X, loft, dir.Z).Unit
+			end
+
 			ballState.Velocity = launchDir * speed
-			-- Vertical spin axis produces horizontal Magnus curve
 			ballState.Spin = Vector3.new(0, curve * Config.Kicks.MaxSpin * (0.4 + 0.6 * pwr), 0)
 
 			ownerPlayer = nil
@@ -660,7 +725,30 @@ function BallManager.Init(
 		end
 	)
 
-	-- Dribble release / toggle
+	-- Lobby Training Pitch Ball Kick
+	Network.GetEvent("TrainingBallKick").OnServerEvent:Connect(function(player: Player, ballInst: Instance, targetPos: Vector3, powerRatio: number)
+		if typeof(ballInst) ~= "Instance" or not ballInst:IsA("BasePart") or not ballInst:GetAttribute("IsTrainingBall") then
+			return
+		end
+		if typeof(targetPos) ~= "Vector3" or type(powerRatio) ~= "number" then
+			return
+		end
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not hrp or (hrp.Position - ballInst.Position).Magnitude > 14 then
+			return
+		end
+		local toTarget = targetPos - ballInst.Position
+		local flat = Vector3.new(toTarget.X, 0, toTarget.Z)
+		if flat.Magnitude < 0.2 then
+			flat = hrp.CFrame.LookVector
+		end
+		local pwr = math.clamp(powerRatio, 0.2, 1)
+		local speed = Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr
+		local arc = math.clamp(flat.Magnitude * 0.005 + (targetPos.Y - ballInst.Position.Y) / math.max(flat.Magnitude, 8), 0.12, 0.5)
+		ballInst.AssemblyLinearVelocity = Vector3.new(flat.Unit.X, arc, flat.Unit.Z).Unit * speed
+	end)
+
 	Network.GetEvent("DribbleToggle").OnServerEvent:Connect(function(player: Player)
 		if ownerPlayer == player then
 			ownerPlayer = nil
@@ -669,7 +757,6 @@ function BallManager.Init(
 		end
 	end)
 
-	-- Slide Tackle / Steal
 	Network.GetEvent("TackleRequest").OnServerEvent:Connect(function(player: Player)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -690,8 +777,7 @@ function BallManager.Init(
 		end
 	end)
 
-	-- Goalkeeper Dive
-	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, diveDir: Vector3)
+	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, _diveDir: Vector3)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if not hrp then
@@ -703,7 +789,6 @@ function BallManager.Init(
 		end
 	end)
 
-	-- Main Physics Loop
 	local broadcastAccum = 0
 	RunService.Heartbeat:Connect(function(dt: number)
 		local stepDt = math.min(dt, 0.05)
@@ -713,7 +798,6 @@ function BallManager.Init(
 		local now = os.clock()
 
 		if not ballFrozen then
-			-- 1. Handle Dribble Ownership
 			if ownerPlayer then
 				local char = ownerPlayer.Character
 				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -728,10 +812,19 @@ function BallManager.Init(
 					ballState.Spin = Vector3.zero
 				end
 			else
-				-- 2. Free Ball Physics
 				ballState = BallPhysics.Step(ballState, stepDt, halfL, halfW)
 
-				-- 3. Check Goalkeeper Diving Saves & Player Pickups
+				-- AI Goalkeepers step & save check
+				local aiSaved, clearVel = GoalkeeperAI.Step(stepDt, ballState.Position, ballState.Velocity, currentMode)
+				if aiSaved and clearVel then
+					ballState.Velocity = clearVel
+					ballState.Spin = Vector3.zero
+					if onAISaveCallback then
+						onAISaveCallback()
+					end
+				end
+
+				-- Player GK & Dribble pickup checks
 				for _, player in ipairs(Players:GetPlayers()) do
 					local char = player.Character
 					local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -739,7 +832,6 @@ function BallManager.Init(
 					if hrp and hum and hum.Health > 0 then
 						local dist = (hrp.Position - ballState.Position).Magnitude
 
-						-- Diving GK save check
 						if divingPlayers[player.UserId] and now < divingPlayers[player.UserId] and dist <= 7.2 then
 							if ballState.Velocity.Magnitude > 22 then
 								divingPlayers[player.UserId] = nil
@@ -754,7 +846,6 @@ function BallManager.Init(
 							end
 						end
 
-						-- Loose ball dribble pickup
 						local cd = stealCooldowns[player.UserId] or 0
 						if now > cd and dist <= Config.Ball.DribbleSnapRange and ballState.Position.Y <= 4.0 and ballState.Velocity.Magnitude < 55 then
 							ownerPlayer = player
@@ -765,12 +856,10 @@ function BallManager.Init(
 				end
 			end
 
-			-- 4. Goal & Out-of-Bounds Detection (only when match is actively playing)
 			if matchPlaying then
 				local p = ballState.Position
 				local halfGoalW = modeCfg.GoalWidth * 0.5
 
-				-- Home Goal at -halfL (Away scores!)
 				if p.Z <= -halfL - Config.Ball.Radius * 0.5 and math.abs(p.X) <= halfGoalW and p.Y <= modeCfg.GoalHeight then
 					matchPlaying = false
 					ballFrozen = true
@@ -778,7 +867,6 @@ function BallManager.Init(
 					if onGoalCallback then
 						onGoalCallback("Away", lastTouchPlayer, assister)
 					end
-				-- Away Goal at +halfL (Home scores!)
 				elseif p.Z >= halfL + Config.Ball.Radius * 0.5 and math.abs(p.X) <= halfGoalW and p.Y <= modeCfg.GoalHeight then
 					matchPlaying = false
 					ballFrozen = true
@@ -786,7 +874,6 @@ function BallManager.Init(
 					if onGoalCallback then
 						onGoalCallback("Home", lastTouchPlayer, assister)
 					end
-				-- Touchline Out-of-Bounds (Throw-in)
 				elseif math.abs(p.X) > halfW + 1.5 then
 					ownerPlayer = nil
 					local clampedZ = math.clamp(p.Z, -halfL + 5, halfL - 5)
@@ -796,7 +883,6 @@ function BallManager.Init(
 					if onSetPieceCallback then
 						onSetPieceCallback("Throw-In", spot, kickingTeam)
 					end
-				-- Endline Out-of-Bounds (Corner or Goal Kick)
 				elseif math.abs(p.Z) > halfL + 2.0 and math.abs(p.X) > halfGoalW then
 					ownerPlayer = nil
 					local endSign = math.sign(p.Z)
@@ -810,7 +896,6 @@ function BallManager.Init(
 			end
 		end
 
-		-- Update physical part
 		local bp = ensureBallPart()
 		local speed = ballState.Velocity.Magnitude
 		if speed > 0.5 then
@@ -1134,6 +1219,148 @@ return DataService
     </Item>
     <Item class="ModuleScript" referent="RBX000007">
       <Properties>
+        <string name="Name">GoalkeeperAI</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- GoalkeeperAI.luau
+-- Controls 3D AI Goalkeepers in both goals to track the ball, dive for shots, and make saves.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local ModelFactory = require(script.Parent.ModelFactory)
+
+local GoalkeeperAI = {}
+
+type KeeperState = {
+	Model: Model?,
+	Side: "Home" | "Away",
+	Pos: Vector3,
+	DiveTimer: number,
+	DiveOffset: Vector3,
+	SaveCooldown: number,
+}
+
+local homeGK: KeeperState = {
+	Model = nil,
+	Side = "Home",
+	Pos = Vector3.new(0, 0, -106),
+	DiveTimer = 0,
+	DiveOffset = Vector3.zero,
+	SaveCooldown = 0,
+}
+
+local awayGK: KeeperState = {
+	Model = nil,
+	Side = "Away",
+	Pos = Vector3.new(0, 0, 106),
+	DiveTimer = 0,
+	DiveOffset = Vector3.zero,
+	SaveCooldown = 0,
+}
+
+local function ensureKeepers(mode: Config.MatchMode)
+	local stadium = Workspace:FindFirstChild("Stadium")
+	if not stadium then
+		return
+	end
+	local halfL = Config.MatchModes[mode].PitchLength * 0.5
+
+	if not homeGK.Model or not homeGK.Model.Parent then
+		homeGK.Pos = Vector3.new(0, 0, -halfL + 3.5)
+		homeGK.Model = ModelFactory.BuildGoalkeeper(stadium, "HomeGoalkeeper", homeGK.Pos, Vector3.new(0, 0, 0), Color3.fromRGB(250, 204, 21))
+	end
+	if not awayGK.Model or not awayGK.Model.Parent then
+		awayGK.Pos = Vector3.new(0, 0, halfL - 3.5)
+		awayGK.Model = ModelFactory.BuildGoalkeeper(stadium, "AwayGoalkeeper", awayGK.Pos, Vector3.new(0, 0, 0), Color3.fromRGB(16, 185, 129))
+	end
+end
+
+function GoalkeeperAI.Rebuild(mode: Config.MatchMode)
+	if homeGK.Model then
+		homeGK.Model:Destroy()
+		homeGK.Model = nil
+	end
+	if awayGK.Model then
+		awayGK.Model:Destroy()
+		awayGK.Model = nil
+	end
+	ensureKeepers(mode)
+end
+
+-- Returns (saved: boolean, clearVelocity: Vector3?)
+function GoalkeeperAI.Step(dt: number, ballPos: Vector3, ballVel: Vector3, mode: Config.MatchMode): (boolean, Vector3?)
+	ensureKeepers(mode)
+
+	local modeCfg = Config.MatchModes[mode]
+	local halfL = modeCfg.PitchLength * 0.5
+	local maxSlideX = modeCfg.GoalWidth * 0.5 - 2.0
+
+	local savedAny = false
+	local clearVel: Vector3? = nil
+
+	for _, gk in ipairs({ homeGK, awayGK }) do
+		local isHome = (gk.Side == "Home")
+		local baseZ = if isHome then (-halfL + 3.5) else (halfL - 3.5)
+		local forwardZ = if isHome then 1 else -1
+
+		gk.SaveCooldown = math.max(0, gk.SaveCooldown - dt)
+
+		-- Track ball X position smoothly
+		local targetX = math.clamp(ballPos.X, -maxSlideX, maxSlideX)
+		local moveSpeed = 16
+		local newX = gk.Pos.X + (targetX - gk.Pos.X) * math.clamp(dt * moveSpeed * 0.35, 0, 1)
+
+		-- Trigger dive if a fast shot is heading toward this goal
+		local headingToGoal = (isHome and ballVel.Z < -18 and ballPos.Z < -halfL * 0.25)
+			or ((not isHome) and ballVel.Z > 18 and ballPos.Z > halfL * 0.25)
+		if headingToGoal and gk.DiveTimer <= 0 and (ballPos - gk.Pos).Magnitude < 48 then
+			gk.DiveTimer = 0.65
+			local diveX = math.clamp(ballPos.X - gk.Pos.X, -6, 6)
+			local diveY = math.clamp(ballPos.Y - 2.5, 0, 3.8)
+			gk.DiveOffset = Vector3.new(diveX * 0.5, diveY, 0)
+		end
+
+		if gk.DiveTimer > 0 then
+			gk.DiveTimer -= dt
+		else
+			gk.DiveOffset = gk.DiveOffset:Lerp(Vector3.zero, math.clamp(dt * 8, 0, 1))
+		end
+
+		gk.Pos = Vector3.new(newX, 0, baseZ)
+		local displayPos = gk.Pos + gk.DiveOffset
+
+		if gk.Model and gk.Model.PrimaryPart then
+			local lookTarget = Vector3.new(ballPos.X, displayPos.Y + 3.2, ballPos.Z)
+			if (lookTarget - (displayPos + Vector3.new(0, 3.2, 0))).Magnitude < 0.1 then
+				lookTarget = displayPos + Vector3.new(0, 3.2, forwardZ * 10)
+			end
+			local targetCF = CFrame.lookAt(displayPos + Vector3.new(0, 3.2, 0), lookTarget)
+			local currentPivot = gk.Model:GetPivot()
+			local delta = targetCF * currentPivot:Inverse()
+			-- Move all parts cleanly
+			gk.Model:PivotTo(targetCF)
+		end
+
+		-- Save collision check
+		local keeperCenter = displayPos + Vector3.new(0, 3.2, 0)
+		if gk.SaveCooldown <= 0 and (ballPos - keeperCenter).Magnitude <= 4.6 and ballVel.Magnitude > 12 then
+			gk.SaveCooldown = 0.75
+			savedAny = true
+			local outDir = Vector3.new((ballPos.X - keeperCenter.X) * 0.4, 0.32, forwardZ).Unit
+			clearVel = outDir * 56
+		end
+	end
+
+	return savedAny, clearVel
+end
+
+return GoalkeeperAI
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000008">
+      <Properties>
         <string name="Name">KitAndCelebrationService</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- KitAndCelebrationService.luau
@@ -1319,15 +1546,16 @@ return KitAndCelebrationService
 ]]></ProtectedString>
       </Properties>
     </Item>
-    <Item class="Script" referent="RBX000008">
+    <Item class="Script" referent="RBX000009">
       <Properties>
         <string name="Name">MatchManager</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- MatchManager.server.luau
--- Orchestrates teams, 5v5 / 11v11 match modes, match clock, goals, set pieces, and the championship trophy ceremony.
+-- Orchestrates teams, Lobby/Training Pitch, 5v5/11v11 modes, Stadium themes, Admin Panel (ninja373670), and Trophy Ceremony.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Teams = game:GetService("Teams")
 local Workspace = game:GetService("Workspace")
 
@@ -1336,10 +1564,11 @@ local Network = require(ReplicatedStorage.Shared.Network)
 
 local BallManager = require(script.Parent.BallManager)
 local DataService = require(script.Parent.DataService)
+local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
 local KitAndCelebrationService = require(script.Parent.KitAndCelebrationService)
+local ModelFactory = require(script.Parent.ModelFactory)
 local StadiumBuilder = require(script.Parent.StadiumBuilder)
 
--- 1. Initialize Remotes & Teams
 Network.InitServer()
 
 local function getOrCreateTeam(name: string, color: BrickColor): Team
@@ -1358,14 +1587,13 @@ end
 local homeTeam = getOrCreateTeam(Config.Teams.Home.Name, Config.Teams.Home.Color)
 local awayTeam = getOrCreateTeam(Config.Teams.Away.Name, Config.Teams.Away.Color)
 
--- 2. Initialize Services
 DataService.Init(function(player)
 	KitAndCelebrationService.ApplyKit(player)
 end)
 KitAndCelebrationService.Init(DataService.GetProfile)
 
--- 3. Match State
 local currentMode: Config.MatchMode = Config.DefaultMode
+local currentStadium: Config.StadiumThemeId = Config.DefaultStadium
 local modeVotes: { [number]: Config.MatchMode } = {}
 
 local matchPhase = "Intermission"
@@ -1373,8 +1601,13 @@ local halfNumber = 1
 local timeRemaining = Config.IntermissionSeconds
 local homeScore = 0
 local awayScore = 0
-local statusBanner = "Warmup — Next Match Starting Soon"
+local statusBanner = "Lobby Training Pitch — Next Match Starting Soon"
 local goalScoredFlag = false
+local forceSkipPhase = false
+
+local function isAdmin(player: Player): boolean
+	return player.Name == Config.AdminUsername or RunService:IsStudio()
+end
 
 local function assignTeamBalanced(player: Player)
 	local homeCount = #homeTeam:GetPlayers()
@@ -1396,7 +1629,6 @@ for _, p in ipairs(Players:GetPlayers()) do
 	end
 end
 
--- Mode voting
 Network.GetEvent("VoteMatchMode").OnServerEvent:Connect(function(player: Player, mode: string)
 	if mode == "5v5" or mode == "11v11" then
 		modeVotes[player.UserId] = mode :: Config.MatchMode
@@ -1412,10 +1644,7 @@ local function resolveModeVote(): Config.MatchMode
 			v11 += 1
 		end
 	end
-	if v11 > v5 then
-		return "11v11"
-	end
-	return "5v5"
+	return if v11 > v5 then "11v11" else "5v5"
 end
 
 local function broadcastMatchState()
@@ -1426,8 +1655,21 @@ local function broadcastMatchState()
 		HomeScore = homeScore,
 		AwayScore = awayScore,
 		Mode = currentMode,
+		Stadium = currentStadium,
 		Status = statusBanner,
 	})
+end
+
+local function teleportPlayersToLobby()
+	local c = Config.LobbyCenter
+	for i, player in ipairs(Players:GetPlayers()) do
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			local offX = ((i - 1) % 4 - 1.5) * 8
+			hrp.CFrame = CFrame.lookAt(c + Vector3.new(offX, 3.5, -56), c + Vector3.new(0, 3.5, 0))
+			hrp.AssemblyLinearVelocity = Vector3.zero
+		end
+	end
 end
 
 local function positionPlayersForKickoff()
@@ -1453,59 +1695,66 @@ local function positionPlayersForKickoff()
 	end
 end
 
-local function spawnChampionshipTrophy(winningTeamName: string)
-	local old = Workspace:FindFirstChild("ChampionshipTrophy")
-	if old then
-		old:Destroy()
+-- Admin Panel Commands (strictly restricted to ninja373670)
+Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, cmd: string, arg: any)
+	if not isAdmin(player) then
+		return
 	end
+	local halfL = Config.MatchModes[currentMode].PitchLength * 0.5
 
-	local model = Instance.new("Model")
-	model.Name = "ChampionshipTrophy"
+	if cmd == "FreeKick" then
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			local spot = Vector3.new(hrp.Position.X, Config.Ball.Radius, hrp.Position.Z)
+			BallManager.ResetToSpot(spot, false)
+			statusBanner = "ADMIN FREE KICK AWARDED!"
+			broadcastMatchState()
+		end
+	elseif cmd == "PenaltyHome" then
+		-- Home shoots at AwayGoal (+halfL)
+		local spot = Vector3.new(0, Config.Ball.Radius, halfL - Config.Kicks.GKBoxDepth * 0.68)
+		BallManager.ResetToSpot(spot, false)
+		statusBanner = "PENALTY KICK — HOME FC!"
+		broadcastMatchState()
+	elseif cmd == "PenaltyAway" then
+		-- Away shoots at HomeGoal (-halfL)
+		local spot = Vector3.new(0, Config.Ball.Radius, -(halfL - Config.Kicks.GKBoxDepth * 0.68))
+		BallManager.ResetToSpot(spot, false)
+		statusBanner = "PENALTY KICK — AWAY UNITED!"
+		broadcastMatchState()
+	elseif cmd == "SetStadium" and type(arg) == "string" and (Config.StadiumThemes :: any)[arg] then
+		currentStadium = arg :: Config.StadiumThemeId
+		StadiumBuilder.Build(currentMode, currentStadium)
+		GoalkeeperAI.Rebuild(currentMode)
+		statusBanner = "Stadium Changed: " .. (Config.StadiumThemes :: any)[arg].Name
+		broadcastMatchState()
+	elseif cmd == "SetMode" and (arg == "5v5" or arg == "11v11") then
+		currentMode = arg :: Config.MatchMode
+		StadiumBuilder.Build(currentMode, currentStadium)
+		GoalkeeperAI.Rebuild(currentMode)
+		BallManager.SetMatchActive(matchPhase == "Playing", currentMode)
+		statusBanner = "Match Format Changed: " .. currentMode
+		broadcastMatchState()
+	elseif cmd == "ResetBall" then
+		BallManager.ResetToSpot(Vector3.zero, false)
+		statusBanner = "Ball Reset to Center"
+		broadcastMatchState()
+	elseif cmd == "AddGoalHome" then
+		homeScore += 1
+		broadcastMatchState()
+	elseif cmd == "AddGoalAway" then
+		awayScore += 1
+		broadcastMatchState()
+	elseif cmd == "SkipPhase" then
+		forceSkipPhase = true
+	end
+end)
 
-	local pedestal = Instance.new("Part")
-	pedestal.Name = "Pedestal"
-	pedestal.Size = Vector3.new(6, 2.5, 6)
-	pedestal.Position = Vector3.new(0, 1.25, 0)
-	pedestal.Color = Color3.fromRGB(15, 23, 42)
-	pedestal.Material = Enum.Material.Marble
-	pedestal.Anchored = true
-	pedestal.Parent = model
-
-	local cup = Instance.new("Part")
-	cup.Name = "GoldenCup"
-	cup.Shape = Enum.PartType.Cylinder
-	cup.Size = Vector3.new(5.5, 3.6, 3.6)
-	cup.CFrame = CFrame.new(0, 5.2, 0) * CFrame.Angles(0, 0, math.rad(90))
-	cup.Color = Color3.fromRGB(250, 204, 21)
-	cup.Material = Enum.Material.Metal
-	cup.Reflectance = 0.45
-	cup.Anchored = true
-	cup.Parent = model
-
-	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromOffset(240, 60)
-	bb.StudsOffset = Vector3.new(0, 5, 0)
-	bb.AlwaysOnTop = true
-	bb.Parent = cup
-
-	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.fromScale(1, 1)
-	lbl.BackgroundTransparency = 1
-	lbl.Text = "CHAMPIONS: " .. string.upper(winningTeamName)
-	lbl.TextColor3 = Color3.fromRGB(250, 204, 21)
-	lbl.TextStrokeTransparency = 0.2
-	lbl.Font = Enum.Font.GothamBlack
-	lbl.TextScaled = true
-	lbl.Parent = bb
-
-	model.Parent = Workspace
-end
-
--- Build initial stadium & init BallManager
-StadiumBuilder.Build(currentMode)
+-- Build initial stadium + lobby + goalkeepers
+StadiumBuilder.Build(currentMode, currentStadium)
+GoalkeeperAI.Rebuild(currentMode)
 
 BallManager.Init(
-	-- On Goal Scored
 	function(scoringTeam, scorer, assister)
 		if goalScoredFlag or matchPhase ~= "Playing" then
 			return
@@ -1549,13 +1798,15 @@ BallManager.Init(
 			end
 		end)
 	end,
-	-- On Goalkeeper Save
 	function(keeper)
 		DataService.AwardSave(keeper)
 		statusBanner = "GREAT SAVE by " .. keeper.DisplayName .. "!"
 		broadcastMatchState()
 	end,
-	-- On Set Piece
+	function()
+		statusBanner = "KEEPER SAVE!"
+		broadcastMatchState()
+	end,
 	function(kind, _spot, team)
 		local teamName = if team == "Home" then Config.Teams.Home.Name else Config.Teams.Away.Name
 		statusBanner = string.format("%s — %s", kind, teamName)
@@ -1563,81 +1814,66 @@ BallManager.Init(
 	end
 )
 
--- 4. Main Match Loop
+local function waitCountdown(seconds: number, pauseOnGoal: boolean)
+	timeRemaining = seconds
+	forceSkipPhase = false
+	while timeRemaining > 0 and not forceSkipPhase do
+		broadcastMatchState()
+		task.wait(1)
+		if not (pauseOnGoal and goalScoredFlag) then
+			timeRemaining -= 1
+		end
+	end
+end
+
+-- Main Match Loop
 task.spawn(function()
 	while true do
-		-- INTERMISSION
 		matchPhase = "Intermission"
 		halfNumber = 1
 		homeScore = 0
 		awayScore = 0
-		timeRemaining = Config.IntermissionSeconds
 		BallManager.SetMatchActive(false, currentMode)
-		statusBanner = "Intermission — Vote 5v5 or 11v11!"
+		statusBanner = "Lobby Training Pitch — Vote 5v5 or 11v11!"
 		local oldTrophy = Workspace:FindFirstChild("ChampionshipTrophy")
 		if oldTrophy then
 			oldTrophy:Destroy()
 		end
+		teleportPlayersToLobby()
+		waitCountdown(Config.IntermissionSeconds, false)
 
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			timeRemaining -= 1
-		end
-
-		-- Apply voted mode & rebuild stadium if changed
 		local nextMode = resolveModeVote()
 		if nextMode ~= currentMode then
 			currentMode = nextMode
-			StadiumBuilder.Build(currentMode)
+			StadiumBuilder.Build(currentMode, currentStadium)
+			GoalkeeperAI.Rebuild(currentMode)
 		end
 
-		-- 1ST HALF
+		-- 1st Half
 		matchPhase = "Playing"
 		halfNumber = 1
-		timeRemaining = Config.MatchModes[currentMode].HalfDurationSeconds
 		statusBanner = "1st Half — Kickoff!"
 		BallManager.ResetToSpot(Vector3.zero, false)
 		positionPlayersForKickoff()
 		BallManager.SetMatchActive(true, currentMode)
+		waitCountdown(Config.MatchModes[currentMode].HalfDurationSeconds, true)
 
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			if not goalScoredFlag then
-				timeRemaining -= 1
-			end
-		end
-
-		-- HALF TIME
+		-- Half-Time
 		matchPhase = "HalfTime"
 		BallManager.SetMatchActive(false, currentMode)
-		timeRemaining = Config.HalfTimeSeconds
 		statusBanner = "Half-Time Break"
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			timeRemaining -= 1
-		end
+		waitCountdown(Config.HalfTimeSeconds, false)
 
-		-- 2ND HALF
+		-- 2nd Half
 		matchPhase = "Playing"
 		halfNumber = 2
-		timeRemaining = Config.MatchModes[currentMode].HalfDurationSeconds
 		statusBanner = "2nd Half — Kickoff!"
 		BallManager.ResetToSpot(Vector3.zero, false)
 		positionPlayersForKickoff()
 		BallManager.SetMatchActive(true, currentMode)
+		waitCountdown(Config.MatchModes[currentMode].HalfDurationSeconds, true)
 
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			if not goalScoredFlag then
-				timeRemaining -= 1
-			end
-		end
-
-		-- FULL TIME & TROPHY CEREMONY
+		-- Trophy Ceremony
 		matchPhase = "TrophyCeremony"
 		BallManager.SetMatchActive(false, currentMode)
 		local winner: "Home" | "Away" | "Draw" = "Draw"
@@ -1651,7 +1887,7 @@ task.spawn(function()
 		end
 
 		statusBanner = "FULL TIME! " .. winnerName .. " Wins!"
-		spawnChampionshipTrophy(winnerName)
+		ModelFactory.BuildTrophy(Workspace, Vector3.new(0, 0, 0), "CHAMPIONS: " .. string.upper(winnerName))
 		Network.GetEvent("TrophyCeremonyStart"):FireAllClients(winnerName)
 
 		for _, player in ipairs(Players:GetPlayers()) do
@@ -1662,23 +1898,340 @@ task.spawn(function()
 			end
 		end
 
-		timeRemaining = Config.TrophyCeremonySeconds
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			timeRemaining -= 1
-		end
+		waitCountdown(Config.TrophyCeremonySeconds, false)
 	end
 end)
 ]]></ProtectedString>
       </Properties>
     </Item>
-    <Item class="ModuleScript" referent="RBX000009">
+    <Item class="ModuleScript" referent="RBX000010">
+      <Properties>
+        <string name="Name">ModelFactory</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- ModelFactory.luau
+-- Procedurally constructs custom 3D models: Championship Trophy, Dugouts, Floodlight Towers, 3D Fans, and 3D Goalkeepers.
+
+local ModelFactory = {}
+
+local function part(props: {
+	Name: string,
+	Size: Vector3,
+	CFrame: CFrame,
+	Color: Color3,
+	Material: Enum.Material?,
+	Shape: Enum.PartType?,
+	Transparency: number?,
+	CanCollide: boolean?,
+	Reflectance: number?,
+	Parent: Instance,
+}): Part
+	local p = Instance.new("Part")
+	p.Name = props.Name
+	p.Size = props.Size
+	p.CFrame = props.CFrame
+	p.Color = props.Color
+	p.Material = props.Material or Enum.Material.SmoothPlastic
+	if props.Shape then
+		p.Shape = props.Shape
+	end
+	p.Transparency = props.Transparency or 0
+	p.CanCollide = if props.CanCollide ~= nil then props.CanCollide else true
+	p.Reflectance = props.Reflectance or 0
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = props.Parent
+	return p
+end
+
+-- Custom 3D Championship Trophy Model
+function ModelFactory.BuildTrophy(parent: Instance, position: Vector3, titleText: string): Model
+	local model = Instance.new("Model")
+	model.Name = "ChampionshipTrophy"
+
+	local gold = Color3.fromRGB(250, 204, 21)
+	local darkMarble = Color3.fromRGB(15, 23, 42)
+
+	-- Tiered Base
+	part({
+		Name = "BaseLower",
+		Size = Vector3.new(6.5, 1.4, 6.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 0.7, 0)),
+		Color = darkMarble,
+		Material = Enum.Material.Marble,
+		Parent = model,
+	})
+	part({
+		Name = "BaseUpper",
+		Size = Vector3.new(4.4, 1.1, 4.4),
+		CFrame = CFrame.new(position + Vector3.new(0, 1.95, 0)),
+		Color = gold,
+		Material = Enum.Material.Metal,
+		Reflectance = 0.4,
+		Parent = model,
+	})
+	-- Stem
+	part({
+		Name = "Stem",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(2.4, 1.3, 1.3),
+		CFrame = CFrame.new(position + Vector3.new(0, 3.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = gold,
+		Material = Enum.Material.Metal,
+		Reflectance = 0.5,
+		Parent = model,
+	})
+	-- Cup Bowl
+	local bowl = part({
+		Name = "CupBowl",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(3.2, 3.8, 3.8),
+		CFrame = CFrame.new(position + Vector3.new(0, 6.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = gold,
+		Material = Enum.Material.Metal,
+		Reflectance = 0.55,
+		Parent = model,
+	})
+	-- Handles
+	for _, side in ipairs({ -1, 1 }) do
+		part({
+			Name = "Handle_" .. side,
+			Size = Vector3.new(0.5, 2.2, 1.2),
+			CFrame = CFrame.new(position + Vector3.new(side * 2.25, 6.1, 0)),
+			Color = gold,
+			Material = Enum.Material.Metal,
+			Reflectance = 0.45,
+			Parent = model,
+		})
+	end
+	-- Glowing Crown Ball
+	part({
+		Name = "CrownOrb",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1.5, 1.5, 1.5),
+		CFrame = CFrame.new(position + Vector3.new(0, 8.2, 0)),
+		Color = Color3.fromRGB(255, 235, 120),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(260, 56)
+	bb.StudsOffset = Vector3.new(0, 4.5, 0)
+	bb.AlwaysOnTop = true
+	bb.Parent = bowl
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = titleText
+	lbl.TextColor3 = gold
+	lbl.TextStrokeTransparency = 0.2
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.Parent = bb
+
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Team Dugout Shelter & Bench
+function ModelFactory.BuildDugout(parent: Instance, cf: CFrame, teamColor: Color3, name: string): Model
+	local model = Instance.new("Model")
+	model.Name = name
+
+	-- Back & Roof Glass
+	part({
+		Name = "BackGlass",
+		Size = Vector3.new(24, 7.5, 0.4),
+		CFrame = cf * CFrame.new(0, 3.75, 2.5),
+		Color = Color3.fromRGB(148, 163, 184),
+		Material = Enum.Material.Glass,
+		Transparency = 0.45,
+		Parent = model,
+	})
+	part({
+		Name = "Roof",
+		Size = Vector3.new(24.6, 0.4, 6),
+		CFrame = cf * CFrame.new(0, 7.6, 0) * CFrame.Angles(math.rad(-8), 0, 0),
+		Color = teamColor,
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	-- Bench Seat
+	part({
+		Name = "Bench",
+		Size = Vector3.new(21, 0.6, 2.2),
+		CFrame = cf * CFrame.new(0, 1.8, 0.8),
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.SmoothPlastic,
+		Parent = model,
+	})
+	for i = -2, 2 do
+		part({
+			Name = "SeatBack_" .. i,
+			Size = Vector3.new(2.6, 2.4, 0.4),
+			CFrame = cf * CFrame.new(i * 4.2, 3.1, 1.7),
+			Color = teamColor,
+			Parent = model,
+		})
+	end
+
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Floodlight Tower with Neon Light Bank & SpotLights
+function ModelFactory.BuildFloodlightTower(parent: Instance, basePos: Vector3, accentColor: Color3, idx: number): Model
+	local model = Instance.new("Model")
+	model.Name = "FloodlightTower_" .. idx
+
+	local towerH = 105
+	-- Main Steel Pylon
+	part({
+		Name = "Pylon",
+		Size = Vector3.new(4.2, towerH, 4.2),
+		CFrame = CFrame.new(basePos + Vector3.new(0, towerH * 0.5, 0)),
+		Color = Color3.fromRGB(51, 65, 85),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	-- Accent Neon Ring
+	part({
+		Name = "TowerAccent",
+		Size = Vector3.new(4.8, 2.0, 4.8),
+		CFrame = CFrame.new(basePos + Vector3.new(0, towerH * 0.85, 0)),
+		Color = accentColor,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	-- Light Bank aimed at center pitch
+	local headPos = basePos + Vector3.new(0, towerH, 0)
+	local headCF = CFrame.lookAt(headPos, Vector3.new(0, 0, 0))
+	local bank = part({
+		Name = "LightBank",
+		Size = Vector3.new(18, 9, 2.5),
+		CFrame = headCF,
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	local bulbs = part({
+		Name = "Bulbs",
+		Size = Vector3.new(16, 7.5, 0.6),
+		CFrame = headCF * CFrame.new(0, 0, -1.4),
+		Color = Color3.fromRGB(255, 250, 232),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	local spot = Instance.new("SpotLight")
+	spot.Brightness = 5.5
+	spot.Range = 320
+	spot.Angle = 82
+	spot.Color = Color3.fromRGB(255, 248, 228)
+	spot.Face = Enum.NormalId.Front
+	spot.Parent = bulbs
+
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Articulated Goalkeeper Model
+function ModelFactory.BuildGoalkeeper(parent: Instance, name: string, pos: Vector3, lookAtPos: Vector3, jerseyColor: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = name
+
+	local cf = CFrame.lookAt(pos, lookAtPos)
+	local skin = Color3.fromRGB(234, 192, 150)
+	local glove = Color3.fromRGB(250, 204, 21)
+
+	local root = part({
+		Name = "Root",
+		Size = Vector3.new(2.2, 2.6, 1.2),
+		CFrame = cf * CFrame.new(0, 3.2, 0),
+		Color = jerseyColor,
+		CanCollide = false,
+		Parent = model,
+	})
+	model.PrimaryPart = root
+
+	part({
+		Name = "Head",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1.7, 1.7, 1.7),
+		CFrame = cf * CFrame.new(0, 5.2, 0),
+		Color = skin,
+		CanCollide = false,
+		Parent = model,
+	})
+	-- Arms & Keeper Gloves
+	for _, side in ipairs({ -1, 1 }) do
+		part({
+			Name = "Arm_" .. side,
+			Size = Vector3.new(0.75, 2.3, 0.75),
+			CFrame = cf * CFrame.new(side * 1.65, 3.4, 0) * CFrame.Angles(0, 0, math.rad(side * 18)),
+			Color = jerseyColor,
+			CanCollide = false,
+			Parent = model,
+		})
+		part({
+			Name = "Glove_" .. side,
+			Size = Vector3.new(0.95, 0.95, 0.95),
+			CFrame = cf * CFrame.new(side * 2.0, 2.2, -0.3),
+			Color = glove,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = model,
+		})
+	end
+	-- Legs & Boots
+	for _, side in ipairs({ -1, 1 }) do
+		part({
+			Name = "Leg_" .. side,
+			Size = Vector3.new(0.9, 2.0, 0.9),
+			CFrame = cf * CFrame.new(side * 0.55, 1.1, 0),
+			Color = Color3.fromRGB(20, 24, 34),
+			CanCollide = false,
+			Parent = model,
+		})
+	end
+
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(90, 28)
+	bb.StudsOffset = Vector3.new(0, 3.2, 0)
+	bb.AlwaysOnTop = true
+	bb.Parent = root
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "GK"
+	lbl.TextColor3 = glove
+	lbl.TextStrokeTransparency = 0.2
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.Parent = bb
+
+	model.Parent = parent
+	return model
+end
+
+return ModelFactory
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000011">
       <Properties>
         <string name="Name">StadiumBuilder</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- StadiumBuilder.luau
--- Procedurally constructs the entire FIFA stadium, pitch markings, goals, stands, and floodlights.
+-- Procedurally constructs a realistic FIFA stadium (with 3D fans, roof canopies, LED boards, dugouts, floodlights)
+-- plus a cool Lobby Lounge with a Practice Training Pitch and 4 selectable Stadium Themes.
 
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1686,6 +2239,7 @@ local Teams = game:GetService("Teams")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local ModelFactory = require(script.Parent.ModelFactory)
 
 local StadiumBuilder = {}
 
@@ -1714,31 +2268,27 @@ local function makePart(props: {
 	return p
 end
 
-local function setupAtmosphere()
-	Lighting.ClockTime = 20.5 -- Floodlit championship night match
-	Lighting.Brightness = 2.2
-	Lighting.Ambient = Color3.fromRGB(45, 52, 68)
-	Lighting.OutdoorAmbient = Color3.fromRGB(60, 72, 95)
-	Lighting.FogEnd = 1200
+local function setupAtmosphere(themeCfg: any)
+	Lighting.ClockTime = themeCfg.ClockTime
+	Lighting.Brightness = 2.4
+	Lighting.Ambient = themeCfg.Ambient
+	Lighting.OutdoorAmbient = themeCfg.Ambient
+	Lighting.FogEnd = 1600
 
-	if not Lighting:FindFirstChildOfClass("Atmosphere") then
-		local atmo = Instance.new("Atmosphere")
-		atmo.Density = 0.22
-		atmo.Offset = 0.25
-		atmo.Color = Color3.fromRGB(140, 170, 220)
-		atmo.Decay = Color3.fromRGB(40, 50, 80)
-		atmo.Glare = 0.35
-		atmo.Haze = 1.2
-		atmo.Parent = Lighting
-	end
+	local atmo = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+	atmo.Density = 0.2
+	atmo.Offset = 0.25
+	atmo.Color = Color3.fromRGB(150, 180, 230)
+	atmo.Decay = Color3.fromRGB(40, 50, 80)
+	atmo.Glare = 0.35
+	atmo.Haze = 1.1
+	atmo.Parent = Lighting
 
-	if not Lighting:FindFirstChildOfClass("BloomEffect") then
-		local bloom = Instance.new("BloomEffect")
-		bloom.Intensity = 0.45
-		bloom.Size = 18
-		bloom.Threshold = 1.15
-		bloom.Parent = Lighting
-	end
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
+	bloom.Intensity = 0.45
+	bloom.Size = 18
+	bloom.Threshold = 1.15
+	bloom.Parent = Lighting
 end
 
 local function buildLine(parent: Instance, name: string, p1: Vector3, p2: Vector3, width: number)
@@ -1754,7 +2304,6 @@ local function buildLine(parent: Instance, name: string, p1: Vector3, p2: Vector
 		Size = Vector3.new(width, 0.08, len + width),
 		CFrame = cf,
 		Color = Color3.fromRGB(245, 248, 252),
-		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
 		Parent = parent,
 	})
@@ -1770,7 +2319,7 @@ local function buildCircle(parent: Instance, center: Vector3, radius: number, se
 	end
 end
 
-local function buildGoal(parent: Instance, name: string, zPos: number, facingSign: number, goalWidth: number, goalHeight: number)
+local function buildGoal(parent: Instance, name: string, centerPos: Vector3, facingSign: number, goalWidth: number, goalHeight: number)
 	local goalFolder = Instance.new("Folder")
 	goalFolder.Name = name
 	goalFolder.Parent = parent
@@ -1780,11 +2329,10 @@ local function buildGoal(parent: Instance, name: string, zPos: number, facingSig
 	local halfW = goalWidth * 0.5
 	local white = Color3.fromRGB(245, 247, 250)
 
-	-- Left & Right Posts
 	makePart({
 		Name = "LeftPost",
 		Size = Vector3.new(postRadius * 2, goalHeight, postRadius * 2),
-		CFrame = CFrame.new(-halfW, goalHeight * 0.5, zPos),
+		CFrame = CFrame.new(centerPos + Vector3.new(-halfW, goalHeight * 0.5, 0)),
 		Color = white,
 		Material = Enum.Material.Metal,
 		Parent = goalFolder,
@@ -1792,29 +2340,28 @@ local function buildGoal(parent: Instance, name: string, zPos: number, facingSig
 	makePart({
 		Name = "RightPost",
 		Size = Vector3.new(postRadius * 2, goalHeight, postRadius * 2),
-		CFrame = CFrame.new(halfW, goalHeight * 0.5, zPos),
+		CFrame = CFrame.new(centerPos + Vector3.new(halfW, goalHeight * 0.5, 0)),
 		Color = white,
 		Material = Enum.Material.Metal,
 		Parent = goalFolder,
 	})
-	-- Crossbar
 	makePart({
 		Name = "Crossbar",
 		Size = Vector3.new(goalWidth + postRadius * 2, postRadius * 2, postRadius * 2),
-		CFrame = CFrame.new(0, goalHeight, zPos),
+		CFrame = CFrame.new(centerPos + Vector3.new(0, goalHeight, 0)),
 		Color = white,
 		Material = Enum.Material.Metal,
 		Parent = goalFolder,
 	})
 
-	-- Back net frame & semi-transparent net panels
-	local backZ = zPos + facingSign * depth
+	local backZ = centerPos.Z + facingSign * depth
+	local midZ = (centerPos.Z + backZ) * 0.5
 	local netColor = Color3.fromRGB(235, 240, 245)
 
 	makePart({
 		Name = "BackNet",
 		Size = Vector3.new(goalWidth, goalHeight, 0.25),
-		CFrame = CFrame.new(0, goalHeight * 0.5, backZ),
+		CFrame = CFrame.new(centerPos.X, centerPos.Y + goalHeight * 0.5, backZ),
 		Color = netColor,
 		Material = Enum.Material.Fabric,
 		Transparency = 0.55,
@@ -1823,7 +2370,7 @@ local function buildGoal(parent: Instance, name: string, zPos: number, facingSig
 	makePart({
 		Name = "TopNet",
 		Size = Vector3.new(goalWidth, 0.25, depth),
-		CFrame = CFrame.new(0, goalHeight, (zPos + backZ) * 0.5),
+		CFrame = CFrame.new(centerPos.X, centerPos.Y + goalHeight, midZ),
 		Color = netColor,
 		Material = Enum.Material.Fabric,
 		Transparency = 0.55,
@@ -1832,7 +2379,7 @@ local function buildGoal(parent: Instance, name: string, zPos: number, facingSig
 	makePart({
 		Name = "LeftNet",
 		Size = Vector3.new(0.25, goalHeight, depth),
-		CFrame = CFrame.new(-halfW, goalHeight * 0.5, (zPos + backZ) * 0.5),
+		CFrame = CFrame.new(centerPos.X - halfW, centerPos.Y + goalHeight * 0.5, midZ),
 		Color = netColor,
 		Material = Enum.Material.Fabric,
 		Transparency = 0.55,
@@ -1841,43 +2388,88 @@ local function buildGoal(parent: Instance, name: string, zPos: number, facingSig
 	makePart({
 		Name = "RightNet",
 		Size = Vector3.new(0.25, goalHeight, depth),
-		CFrame = CFrame.new(halfW, goalHeight * 0.5, (zPos + backZ) * 0.5),
+		CFrame = CFrame.new(centerPos.X + halfW, centerPos.Y + goalHeight * 0.5, midZ),
 		Color = netColor,
 		Material = Enum.Material.Fabric,
 		Transparency = 0.55,
 		Parent = goalFolder,
 	})
-
-	-- Goal-line sensor (used for visual reference; BallManager also checks exact coordinates)
-	makePart({
-		Name = "GoalSensor",
-		Size = Vector3.new(goalWidth - 0.5, goalHeight - 0.5, depth),
-		CFrame = CFrame.new(0, goalHeight * 0.5, (zPos + backZ) * 0.5),
-		Color = Color3.fromRGB(255, 215, 0),
-		Transparency = 1,
-		CanCollide = false,
-		Parent = goalFolder,
-	})
 end
 
-local function buildStandsAndFloodlights(parent: Instance, halfL: number, halfW: number)
+-- Spawns 3D Fan Figures in the stands
+local function spawn3DFans(parent: Instance, startPos: Vector3, stepVec: Vector3, count: number, palette: { Color3 })
+	local skinTones = {
+		Color3.fromRGB(240, 200, 165),
+		Color3.fromRGB(198, 145, 102),
+		Color3.fromRGB(130, 86, 56),
+		Color3.fromRGB(252, 224, 196),
+	}
+	for i = 0, count - 1 do
+		local pos = startPos + stepVec * i
+		local jersey = palette[(i % #palette) + 1]
+		local skin = skinTones[(i % #skinTones) + 1]
+
+		local torso = makePart({
+			Name = "FanTorso",
+			Size = Vector3.new(1.8, 2.0, 1.0),
+			CFrame = CFrame.new(pos + Vector3.new(0, 1.0, 0)),
+			Color = jersey,
+			CanCollide = false,
+			Parent = parent,
+		})
+		torso:SetAttribute("IsFan", true)
+		torso:SetAttribute("BaseY", pos.Y + 1.0)
+
+		makePart({
+			Name = "FanHead",
+			Size = Vector3.new(1.1, 1.1, 1.1),
+			CFrame = CFrame.new(pos + Vector3.new(0, 2.6, 0)),
+			Color = skin,
+			CanCollide = false,
+			Parent = parent,
+		})
+	end
+end
+
+local function buildStandsRoofAndFans(parent: Instance, halfL: number, halfW: number, themeCfg: any)
 	local standsFolder = Instance.new("Folder")
 	standsFolder.Name = "Stands"
 	standsFolder.Parent = parent
 
-	local margin = 24
+	local margin = 22
 	local tierCount = 5
-	local tierDepth = 7
-	local tierHeight = 4.5
+	local tierDepth = 7.5
+	local tierHeight = 4.6
+	local standColor = themeCfg.StandColor
+	local accent = themeCfg.Accent
 	local crowdPalette = {
-		Color3.fromRGB(28, 100, 242),
-		Color3.fromRGB(224, 36, 36),
-		Color3.fromRGB(245, 158, 11),
+		Config.Teams.Home.PrimaryColor,
+		Config.Teams.Away.PrimaryColor,
+		accent,
 		Color3.fromRGB(241, 245, 249),
 		Color3.fromRGB(16, 185, 129),
 	}
 
-	-- Side stands (East & West)
+	-- Perimeter Glowing LED Ad Boards
+	local adY = 1.6
+	makePart({
+		Name = "LEDBoard_West",
+		Size = Vector3.new(0.8, 3.2, halfL * 2 + 12),
+		CFrame = CFrame.new(-halfW - 10, adY, 0),
+		Color = accent,
+		Material = Enum.Material.Neon,
+		Parent = standsFolder,
+	})
+	makePart({
+		Name = "LEDBoard_East",
+		Size = Vector3.new(0.8, 3.2, halfL * 2 + 12),
+		CFrame = CFrame.new(halfW + 10, adY, 0),
+		Color = accent,
+		Material = Enum.Material.Neon,
+		Parent = standsFolder,
+	})
+
+	-- Side stands (East & West) + Roof Canopies + 3D Fans
 	for _, side in ipairs({ -1, 1 }) do
 		for t = 1, tierCount do
 			local x = side * (halfW + margin + (t - 0.5) * tierDepth)
@@ -1886,24 +2478,52 @@ local function buildStandsAndFloodlights(parent: Instance, halfL: number, halfW:
 				Name = "SideTier_" .. side .. "_" .. t,
 				Size = Vector3.new(tierDepth, tierHeight, (halfL + margin) * 2),
 				CFrame = CFrame.new(x, y, 0),
-				Color = Color3.fromRGB(30, 36, 48),
+				Color = standColor,
 				Material = Enum.Material.Concrete,
 				Parent = standsFolder,
 			})
-			-- Crowd strip
-			makePart({
-				Name = "Crowd_" .. side .. "_" .. t,
-				Size = Vector3.new(tierDepth * 0.55, 1.8, (halfL + margin) * 1.9),
-				CFrame = CFrame.new(x, y + tierHeight * 0.5 + 0.9, 0),
-				Color = crowdPalette[((t + (side > 0 and 1 or 2)) % #crowdPalette) + 1],
-				Material = Enum.Material.SmoothPlastic,
-				CanCollide = false,
-				Parent = standsFolder,
-			})
+
+			-- Add 3D fans on tiers 2 and 4
+			if t == 2 or t == 4 then
+				local fanCount = math.floor((halfL * 1.8) / 14)
+				spawn3DFans(
+					standsFolder,
+					Vector3.new(x, y + tierHeight * 0.5, -halfL * 0.85),
+					Vector3.new(0, 0, 14),
+					fanCount,
+					crowdPalette
+				)
+			end
 		end
+
+		-- Stadium Roof Canopy + Overhead Rim Lights
+		local roofX = side * (halfW + margin + tierCount * tierDepth * 0.55)
+		local roofY = tierCount * tierHeight + 14
+		local roof = makePart({
+			Name = "SideRoof_" .. side,
+			Size = Vector3.new(tierCount * tierDepth + 14, 1.8, (halfL + margin) * 2 + 12),
+			CFrame = CFrame.new(roofX, roofY, 0) * CFrame.Angles(0, 0, math.rad(-side * 12)),
+			Color = Color3.fromRGB(30, 41, 59),
+			Material = Enum.Material.Metal,
+			Parent = standsFolder,
+		})
+		makePart({
+			Name = "RoofNeonTrim_" .. side,
+			Size = Vector3.new(1.2, 1.2, (halfL + margin) * 2 + 10),
+			CFrame = CFrame.new(side * (halfW + margin - 3), roofY - 4, 0),
+			Color = accent,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = standsFolder,
+		})
+		local pl = Instance.new("PointLight")
+		pl.Brightness = 1.6
+		pl.Range = 90
+		pl.Color = Color3.fromRGB(255, 248, 230)
+		pl.Parent = roof
 	end
 
-	-- End stands (North & South)
+	-- End stands (North & South) + 3D Fans + Roofs
 	for _, endSign in ipairs({ -1, 1 }) do
 		for t = 1, tierCount do
 			local z = endSign * (halfL + margin + (t - 0.5) * tierDepth)
@@ -1912,79 +2532,186 @@ local function buildStandsAndFloodlights(parent: Instance, halfL: number, halfW:
 				Name = "EndTier_" .. endSign .. "_" .. t,
 				Size = Vector3.new((halfW + margin) * 2, tierHeight, tierDepth),
 				CFrame = CFrame.new(0, y, z),
-				Color = Color3.fromRGB(30, 36, 48),
+				Color = standColor,
 				Material = Enum.Material.Concrete,
 				Parent = standsFolder,
 			})
+			if t == 3 then
+				local fanCount = math.floor((halfW * 1.7) / 14)
+				spawn3DFans(
+					standsFolder,
+					Vector3.new(-halfW * 0.8, y + tierHeight * 0.5, z),
+					Vector3.new(14, 0, 0),
+					fanCount,
+					crowdPalette
+				)
+			end
 		end
-	end
 
-	-- 4 Towering Floodlights
-	local towerCorners = {
-		Vector3.new(-halfW - margin - 18, 0, -halfL - margin - 18),
-		Vector3.new(halfW + margin + 18, 0, -halfL - margin - 18),
-		Vector3.new(-halfW - margin - 18, 0, halfL + margin + 18),
-		Vector3.new(halfW + margin + 18, 0, halfL + margin + 18),
-	}
-	for i, basePos in ipairs(towerCorners) do
-		local towerH = 95
+		local roofZ = endSign * (halfL + margin + tierCount * tierDepth * 0.55)
+		local roofY = tierCount * tierHeight + 14
 		makePart({
-			Name = "FloodlightPole_" .. i,
-			Size = Vector3.new(4, towerH, 4),
-			CFrame = CFrame.new(basePos + Vector3.new(0, towerH * 0.5, 0)),
-			Color = Color3.fromRGB(71, 85, 105),
+			Name = "EndRoof_" .. endSign,
+			Size = Vector3.new((halfW + margin) * 2 + 12, 1.8, tierCount * tierDepth + 14),
+			CFrame = CFrame.new(0, roofY, roofZ) * CFrame.Angles(math.rad(endSign * 12), 0, 0),
+			Color = Color3.fromRGB(30, 41, 59),
 			Material = Enum.Material.Metal,
 			Parent = standsFolder,
 		})
+	end
 
-		local headPos = basePos + Vector3.new(0, towerH, 0)
-		local head = makePart({
-			Name = "FloodlightHead_" .. i,
-			Size = Vector3.new(12, 6, 3),
-			CFrame = CFrame.lookAt(headPos, Vector3.new(0, 0, 0)),
-			Color = Color3.fromRGB(255, 250, 235),
-			Material = Enum.Material.Neon,
-			Parent = standsFolder,
-		})
+	-- 3D Team Dugouts along West Touchline
+	ModelFactory.BuildDugout(standsFolder, CFrame.new(-halfW - 14, 0, -28) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Home.PrimaryColor, "HomeDugout")
+	ModelFactory.BuildDugout(standsFolder, CFrame.new(-halfW - 14, 0, 28) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Away.PrimaryColor, "AwayDugout")
 
-		local spot = Instance.new("SpotLight")
-		spot.Brightness = 4.5
-		spot.Range = 260
-		spot.Angle = 75
-		spot.Color = Color3.fromRGB(255, 248, 230)
-		spot.Face = Enum.NormalId.Front
-		spot.Parent = head
+	-- 4 Towering 3D Floodlight Towers
+	local towerCorners = {
+		Vector3.new(-halfW - margin - 20, 0, -halfL - margin - 20),
+		Vector3.new(halfW + margin + 20, 0, -halfL - margin - 20),
+		Vector3.new(-halfW - margin - 20, 0, halfL + margin + 20),
+		Vector3.new(halfW + margin + 20, 0, halfL + margin + 20),
+	}
+	for i, basePos in ipairs(towerCorners) do
+		ModelFactory.BuildFloodlightTower(standsFolder, basePos, accent, i)
 	end
 end
 
-local function buildSpawns(parent: Instance, halfL: number)
-	local homeTeam = Teams:FindFirstChild("Home FC") :: Team?
-	local awayTeam = Teams:FindFirstChild("Away United") :: Team?
+-- Cool Lobby + Practice Training Pitch
+local function buildLobby(parent: Instance)
+	local lobby = Instance.new("Folder")
+	lobby.Name = "Lobby"
+	lobby.Parent = parent
 
-	local function createSpawn(name: string, pos: Vector3, lookAtPos: Vector3, team: Team?)
+	local center = Config.LobbyCenter
+
+	-- Main Lobby Plaza Floor
+	makePart({
+		Name = "LobbyFloor",
+		Size = Vector3.new(150, 3, 170),
+		CFrame = CFrame.new(center + Vector3.new(0, -1.5, 0)),
+		Color = Color3.fromRGB(15, 23, 42),
+		Material = Enum.Material.Marble,
+		Parent = lobby,
+	})
+
+	-- Glowing Neon Entrance Arch
+	for _, side in ipairs({ -1, 1 }) do
+		makePart({
+			Name = "ArchPillar_" .. side,
+			Size = Vector3.new(3, 22, 3),
+			CFrame = CFrame.new(center + Vector3.new(side * 18, 11, -68)),
+			Color = Color3.fromRGB(30, 41, 59),
+			Material = Enum.Material.Metal,
+			Parent = lobby,
+		})
+	end
+	local archTop = makePart({
+		Name = "ArchTop",
+		Size = Vector3.new(40, 4, 3.5),
+		CFrame = CFrame.new(center + Vector3.new(0, 22, -68)),
+		Color = Color3.fromRGB(250, 204, 21),
+		Material = Enum.Material.Neon,
+		Parent = lobby,
+	})
+	local archLight = Instance.new("PointLight")
+	archLight.Brightness = 3
+	archLight.Range = 120
+	archLight.Color = Color3.fromRGB(250, 204, 21)
+	archLight.Parent = archTop
+
+	-- Lobby Welcome Sign
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(320, 70)
+	bb.StudsOffset = Vector3.new(0, 5, 0)
+	bb.AlwaysOnTop = true
+	bb.Parent = archTop
+
+	local signLbl = Instance.new("TextLabel")
+	signLbl.Size = UDim2.fromScale(1, 1)
+	signLbl.BackgroundTransparency = 1
+	signLbl.Text = "MAPLEVIEW STADIUM LOBBY & TRAINING PITCH"
+	signLbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+	signLbl.TextStrokeTransparency = 0.2
+	signLbl.Font = Enum.Font.GothamBlack
+	signLbl.TextScaled = true
+	signLbl.Parent = bb
+
+	-- 3D Trophy Showcase in Lobby
+	ModelFactory.BuildTrophy(lobby, center + Vector3.new(0, 0, -52), "CHAMPIONSHIP CUP")
+
+	-- Lobby SpawnLocations (Neutral so everyone spawns in Lobby during intermission)
+	for i = -1, 1 do
 		local sp = Instance.new("SpawnLocation")
-		sp.Name = name
-		sp.Size = Vector3.new(6, 0.5, 6)
-		sp.CFrame = CFrame.lookAt(pos, lookAtPos)
+		sp.Name = "LobbySpawn_" .. i
+		sp.Size = Vector3.new(8, 0.5, 8)
+		sp.CFrame = CFrame.lookAt(center + Vector3.new(i * 12, 0.3, -60), center + Vector3.new(0, 0.3, 0))
 		sp.Anchored = true
 		sp.CanCollide = false
 		sp.Transparency = 1
 		sp.Duration = 0
-		if team then
-			sp.Neutral = false
-			sp.TeamColor = team.TeamColor
-		end
-		sp.Parent = parent
+		sp.Neutral = true
+		sp.Parent = lobby
 	end
 
-	for i = -2, 2 do
-		createSpawn("HomeSpawn_" .. i, Vector3.new(i * 14, 0.5, -halfL * 0.45), Vector3.new(0, 0.5, 0), homeTeam)
-		createSpawn("AwaySpawn_" .. i, Vector3.new(i * 14, 0.5, halfL * 0.45), Vector3.new(0, 0.5, 0), awayTeam)
+	-- Practice Training Pitch inside the Lobby
+	local trainCenter = center + Vector3.new(0, 0, 22)
+	local trainL = 96
+	local trainW = 76
+	for i = 1, 6 do
+		local z = trainCenter.Z - trainL * 0.5 + (i - 0.5) * (trainL / 6)
+		makePart({
+			Name = "TrainTurf_" .. i,
+			Size = Vector3.new(trainW, 0.4, trainL / 6),
+			CFrame = CFrame.new(trainCenter.X, 0.1, z),
+			Color = if i % 2 == 0 then Color3.fromRGB(34, 139, 64) else Color3.fromRGB(40, 156, 72),
+			Material = Enum.Material.Grass,
+			Parent = lobby,
+		})
+	end
+
+	-- Training Pitch Lines
+	local ty = 0.32
+	buildLine(lobby, "TrainLineL", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
+	buildLine(lobby, "TrainLineR", Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
+	buildLine(lobby, "TrainGoalLine", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
+
+	-- Training Goal at +Z end of Training Pitch
+	buildGoal(lobby, "TrainingGoal", Vector3.new(trainCenter.X, 0.3, trainCenter.Z + trainL * 0.5), 1, 24, 9.5)
+
+	-- Glowing Target Rings inside Training Goal
+	for _, xOff in ipairs({ -7.5, 0, 7.5 }) do
+		makePart({
+			Name = "TargetRing_" .. xOff,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.4, 3.6, 3.6),
+			CFrame = CFrame.new(trainCenter.X + xOff, 6.2, trainCenter.Z + trainL * 0.5 + 1) * CFrame.Angles(0, math.rad(90), 0),
+			Color = Color3.fromRGB(250, 204, 21),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = lobby,
+		})
+	end
+
+	-- 3 Practice Soccer Balls (unanchored physical balls players can dribble & shoot in the lobby!)
+	for i = -1, 1 do
+		local pBall = Instance.new("Part")
+		pBall.Name = "TrainingBall_" .. (i + 2)
+		pBall.Shape = Enum.PartType.Ball
+		pBall.Size = Vector3.one * (Config.Ball.Radius * 2)
+		pBall.Position = trainCenter + Vector3.new(i * 12, Config.Ball.Radius + 0.5, -18)
+		pBall.Color = Color3.fromRGB(248, 250, 252)
+		pBall.Material = Enum.Material.SmoothPlastic
+		pBall.Anchored = false
+		pBall.CustomPhysicalProperties = PhysicalProperties.new(0.4, 0.3, 0.65, 1, 1)
+		pBall:SetAttribute("IsTrainingBall", true)
+		pBall.Parent = lobby
 	end
 end
 
-function StadiumBuilder.Build(mode: Config.MatchMode)
-	setupAtmosphere()
+function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThemeId?)
+	local themeKey = themeId or Config.DefaultStadium
+	local themeCfg = (Config.StadiumThemes :: any)[themeKey] or Config.StadiumThemes.WembleyNight
+	setupAtmosphere(themeCfg)
 
 	local existing = Workspace:FindFirstChild("Stadium")
 	if existing then
@@ -2002,9 +2729,9 @@ function StadiumBuilder.Build(mode: Config.MatchMode)
 	-- Concrete stadium floor apron
 	makePart({
 		Name = "StadiumFloor",
-		Size = Vector3.new(modeCfg.PitchWidth + 130, 4, modeCfg.PitchLength + 130),
+		Size = Vector3.new(modeCfg.PitchWidth + 140, 4, modeCfg.PitchLength + 140),
 		CFrame = CFrame.new(0, -2.1, 0),
-		Color = Color3.fromRGB(45, 52, 64),
+		Color = Color3.fromRGB(35, 42, 54),
 		Material = Enum.Material.Concrete,
 		Parent = stadium,
 	})
@@ -2019,7 +2746,7 @@ function StadiumBuilder.Build(mode: Config.MatchMode)
 			Name = "TurfStripe_" .. i,
 			Size = Vector3.new(modeCfg.PitchWidth + 10, Config.TurfThickness, stripeLen),
 			CFrame = CFrame.new(0, -Config.TurfThickness * 0.5, z),
-			Color = if isEven then Color3.fromRGB(34, 139, 64) else Color3.fromRGB(40, 156, 72),
+			Color = if isEven then themeCfg.TurfA else themeCfg.TurfB,
 			Material = Enum.Material.Grass,
 			Parent = stadium,
 		})
@@ -2033,17 +2760,13 @@ function StadiumBuilder.Build(mode: Config.MatchMode)
 	local y = 0.05
 	local lw = 0.65
 
-	-- Outer touchlines & goal lines
 	buildLine(linesFolder, "NorthGoalLine", Vector3.new(-halfW, y, -halfL), Vector3.new(halfW, y, -halfL), lw)
 	buildLine(linesFolder, "SouthGoalLine", Vector3.new(-halfW, y, halfL), Vector3.new(halfW, y, halfL), lw)
 	buildLine(linesFolder, "WestTouchline", Vector3.new(-halfW, y, -halfL), Vector3.new(-halfW, y, halfL), lw)
 	buildLine(linesFolder, "EastTouchline", Vector3.new(halfW, y, -halfL), Vector3.new(halfW, y, halfL), lw)
-
-	-- Halfway line & center circle
 	buildLine(linesFolder, "HalfwayLine", Vector3.new(-halfW, y, 0), Vector3.new(halfW, y, 0), lw)
 	buildCircle(linesFolder, Vector3.new(0, y, 0), 22, 32, lw)
 
-	-- Center spot
 	makePart({
 		Name = "CenterSpot",
 		Size = Vector3.new(1.8, 0.08, 1.8),
@@ -2053,7 +2776,6 @@ function StadiumBuilder.Build(mode: Config.MatchMode)
 		Parent = linesFolder,
 	})
 
-	-- Penalty boxes (Home & Away)
 	local boxDepth = Config.Kicks.GKBoxDepth
 	local boxHalfW = Config.Kicks.GKBoxWidth * 0.5
 	for _, endSign in ipairs({ -1, 1 }) do
@@ -2063,10 +2785,9 @@ function StadiumBuilder.Build(mode: Config.MatchMode)
 		buildLine(linesFolder, "BoxLeft_" .. endSign, Vector3.new(-boxHalfW, y, goalZ), Vector3.new(-boxHalfW, y, boxZ), lw)
 		buildLine(linesFolder, "BoxRight_" .. endSign, Vector3.new(boxHalfW, y, goalZ), Vector3.new(boxHalfW, y, boxZ), lw)
 
-		-- Penalty spot
 		makePart({
 			Name = "PenaltySpot_" .. endSign,
-			Size = Vector3.new(1.5, 0.08, 1.5),
+			Size = Vector3.new(1.6, 0.08, 1.6),
 			CFrame = CFrame.new(0, y, goalZ - endSign * (boxDepth * 0.68)),
 			Color = Color3.fromRGB(245, 248, 252),
 			CanCollide = false,
@@ -2101,15 +2822,15 @@ function StadiumBuilder.Build(mode: Config.MatchMode)
 		})
 	end
 
-	-- Goals (Home defends -halfL, Away defends +halfL)
-	buildGoal(stadium, "HomeGoal", -halfL, -1, modeCfg.GoalWidth, modeCfg.GoalHeight)
-	buildGoal(stadium, "AwayGoal", halfL, 1, modeCfg.GoalWidth, modeCfg.GoalHeight)
+	-- Goals
+	buildGoal(stadium, "HomeGoal", Vector3.new(0, 0, -halfL), -1, modeCfg.GoalWidth, modeCfg.GoalHeight)
+	buildGoal(stadium, "AwayGoal", Vector3.new(0, 0, halfL), 1, modeCfg.GoalWidth, modeCfg.GoalHeight)
 
-	-- Stands & Floodlights
-	buildStandsAndFloodlights(stadium, halfL, halfW)
+	-- Stands, Roofs, 3D Fans, Dugouts & Floodlights
+	buildStandsRoofAndFans(stadium, halfL, halfW, themeCfg)
 
-	-- Team SpawnLocations
-	buildSpawns(stadium, halfL)
+	-- Lobby & Training Pitch
+	buildLobby(stadium)
 end
 
 return StadiumBuilder
@@ -2117,25 +2838,25 @@ return StadiumBuilder
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="RBX000019">
+  <Item class="StarterGui" referent="RBX000021">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="RBX000020">
+  <Item class="StarterPlayer" referent="RBX000022">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="RBX000021">
+    <Item class="StarterPlayerScripts" referent="RBX000023">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-    <Item class="LocalScript" referent="RBX000010">
+    <Item class="LocalScript" referent="RBX000012">
       <Properties>
         <string name="Name">HUDController</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- HUDController.client.luau
--- Procedurally builds the broadcast scoreboard, power/curve/stamina bars, goal banner, and Club/Shop/Leaderboard UI.
+-- Broadcast scoreboard, power/curve/stamina bars, goal banner, Club/Shop/Leaderboard modal, and Admin Panel (ninja373670).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -2150,6 +2871,7 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local currentProfile: any = nil
+local isAdminUser = (player.Name == Config.AdminUsername or RunService:IsStudio())
 
 local function makeCorner(parent: Instance, radius: number)
 	local c = Instance.new("UICorner")
@@ -2164,7 +2886,6 @@ local function makeStroke(parent: Instance, color: Color3, thickness: number)
 	s.Parent = parent
 end
 
--- Root ScreenGui
 local gui = Instance.new("ScreenGui")
 gui.Name = "FIFASoccerHUD"
 gui.ResetOnSpawn = false
@@ -2227,7 +2948,7 @@ local statusLbl = Instance.new("TextLabel")
 statusLbl.Size = UDim2.new(1, -16, 0, 20)
 statusLbl.Position = UDim2.fromOffset(8, 45)
 statusLbl.BackgroundTransparency = 1
-statusLbl.Text = "Warmup — Next Match Starting Soon"
+statusLbl.Text = "Lobby Training Pitch — Next Match Starting Soon"
 statusLbl.TextColor3 = Color3.fromRGB(203, 213, 225)
 statusLbl.Font = Enum.Font.GothamSemibold
 statusLbl.TextSize = 13
@@ -2278,7 +2999,7 @@ local controlsHint = Instance.new("TextLabel")
 controlsHint.Size = UDim2.new(1, -16, 0, 32)
 controlsHint.Position = UDim2.fromOffset(8, 82)
 controlsHint.BackgroundTransparency = 1
-controlsHint.Text = "LMB/E: Shoot | F: Through-Ball | RMB/Q: Lob\nA/D: Curve | R: Tackle | Space: GK Dive | G: Celebrate"
+controlsHint.Text = "Click & Hold: Aim & Shoot | F: Through-Ball | RMB: Lob\nA/D: Curve | R: Tackle | Space: GK Dive | G: Celebrate"
 controlsHint.TextColor3 = Color3.fromRGB(148, 163, 184)
 controlsHint.Font = Enum.Font.Gotham
 controlsHint.TextSize = 10
@@ -2454,7 +3175,6 @@ local function renderTab()
 	coinsLbl.Text = string.format("Coins: %d | ELO: %d", prof.Coins or 0, prof.ELO or 1000)
 
 	if activeTab == "Squad" then
-		-- Club Name Editor
 		local clubBox = Instance.new("TextBox")
 		clubBox.Size = UDim2.new(1, -8, 0, 42)
 		clubBox.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
@@ -2579,6 +3299,93 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 end)
 
+-- 5. ADMIN PANEL (Strictly for ninja373670)
+if isAdminUser then
+	local adminBtn = Instance.new("TextButton")
+	adminBtn.Size = UDim2.fromOffset(140, 38)
+	adminBtn.Position = UDim2.new(1, -340, 0, 16)
+	adminBtn.BackgroundColor3 = Color3.fromRGB(127, 29, 29)
+	adminBtn.Text = "ADMIN [P]"
+	adminBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+	adminBtn.Font = Enum.Font.GothamBlack
+	adminBtn.TextSize = 13
+	adminBtn.Parent = gui
+	makeCorner(adminBtn, 10)
+	makeStroke(adminBtn, Color3.fromRGB(239, 68, 68), 1.5)
+
+	local adminPanel = Instance.new("Frame")
+	adminPanel.Size = UDim2.fromOffset(310, 430)
+	adminPanel.Position = UDim2.new(0, 18, 0.5, -215)
+	adminPanel.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+	adminPanel.BackgroundTransparency = 0.05
+	adminPanel.Visible = false
+	adminPanel.Parent = gui
+	makeCorner(adminPanel, 14)
+	makeStroke(adminPanel, Color3.fromRGB(239, 68, 68), 2)
+
+	local aTitle = Instance.new("TextLabel")
+	aTitle.Size = UDim2.new(1, -20, 0, 36)
+	aTitle.Position = UDim2.fromOffset(10, 6)
+	aTitle.BackgroundTransparency = 1
+	aTitle.Text = "ADMIN PANEL (ninja373670)"
+	aTitle.TextColor3 = Color3.fromRGB(250, 204, 21)
+	aTitle.Font = Enum.Font.GothamBlack
+	aTitle.TextSize = 15
+	aTitle.Parent = adminPanel
+
+	local aScroll = Instance.new("ScrollingFrame")
+	aScroll.Size = UDim2.new(1, -20, 1, -52)
+	aScroll.Position = UDim2.fromOffset(10, 44)
+	aScroll.BackgroundTransparency = 1
+	aScroll.ScrollBarThickness = 5
+	aScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	aScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	aScroll.Parent = adminPanel
+
+	local aList = Instance.new("UIListLayout")
+	aList.Padding = UDim.new(0, 6)
+	aList.Parent = aScroll
+
+	local function addAdminBtn(label: string, color: Color3, cmd: string, arg: any)
+		local b = Instance.new("TextButton")
+		b.Size = UDim2.new(1, -6, 0, 34)
+		b.BackgroundColor3 = color
+		b.Text = label
+		b.TextColor3 = Color3.new(1, 1, 1)
+		b.Font = Enum.Font.GothamBold
+		b.TextSize = 13
+		b.Parent = aScroll
+		makeCorner(b, 8)
+		b.MouseButton1Click:Connect(function()
+			Network.GetEvent("AdminCommand"):FireServer(cmd, arg)
+		end)
+	end
+
+	addAdminBtn("Give Free Kick (Where I Stand)", Color3.fromRGB(217, 119, 6), "FreeKick", nil)
+	addAdminBtn("Give Penalty (Home FC)", Color3.fromRGB(37, 99, 235), "PenaltyHome", nil)
+	addAdminBtn("Give Penalty (Away United)", Color3.fromRGB(220, 38, 38), "PenaltyAway", nil)
+	addAdminBtn("Reset Ball to Center", Color3.fromRGB(51, 65, 85), "ResetBall", nil)
+	addAdminBtn("Skip / Next Match Phase", Color3.fromRGB(22, 163, 74), "SkipPhase", nil)
+	addAdminBtn("+1 Goal Home", Color3.fromRGB(30, 64, 175), "AddGoalHome", nil)
+	addAdminBtn("+1 Goal Away", Color3.fromRGB(153, 27, 27), "AddGoalAway", nil)
+	addAdminBtn("Mode: 5v5 Fast-Paced", Color3.fromRGB(71, 85, 105), "SetMode", "5v5")
+	addAdminBtn("Mode: 11v11 Competitive", Color3.fromRGB(71, 85, 105), "SetMode", "11v11")
+	addAdminBtn("Stadium: Wembley Night", Color3.fromRGB(30, 41, 59), "SetStadium", "WembleyNight")
+	addAdminBtn("Stadium: Golden Sunset", Color3.fromRGB(154, 52, 18), "SetStadium", "SunsetArena")
+	addAdminBtn("Stadium: Alpine Snow", Color3.fromRGB(14, 116, 144), "SetStadium", "AlpineSnow")
+	addAdminBtn("Stadium: Neon Cyber Dome", Color3.fromRGB(88, 28, 135), "SetStadium", "NeonCyber")
+
+	local function toggleAdmin()
+		adminPanel.Visible = not adminPanel.Visible
+	end
+	adminBtn.MouseButton1Click:Connect(toggleAdmin)
+	UserInputService.InputBegan:Connect(function(input, gp)
+		if not gp and input.KeyCode == Enum.KeyCode.P then
+			toggleAdmin()
+		end
+	end)
+end
+
 -- Profile & Match Event Listeners
 task.spawn(function()
 	currentProfile = Network.GetFunction("GetProfile"):InvokeServer()
@@ -2619,7 +3426,6 @@ Network.GetEvent("GoalScoredVFX").OnClientEvent:Connect(function(info)
 	end)
 end)
 
--- Live Power / Curve / Stamina Bar Updates
 RunService.RenderStepped:Connect(function()
 	local pwr = (player:GetAttribute("KickCharge") :: number?) or 0
 	local crv = (player:GetAttribute("KickCurve") :: number?) or 0
@@ -2636,12 +3442,12 @@ end)
 ]]></ProtectedString>
       </Properties>
     </Item>
-    <Item class="LocalScript" referent="RBX000011">
+    <Item class="LocalScript" referent="RBX000013">
       <Properties>
         <string name="Name">SoccerController</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- SoccerController.client.luau
--- Client input, stamina/sprint, hold-to-charge curving shots, pinpoint through-balls, GK dives, and tackles.
+-- Click-to-target aiming (no dotted line!), power charging, curve spin, through-balls, GK dives, tackles, and lobby training pitch kicks.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -2649,7 +3455,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
-local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Network = require(ReplicatedStorage.Shared.Network)
 
@@ -2666,33 +3471,18 @@ local lastDiveTime = 0
 local currentMode: Config.MatchMode = Config.DefaultMode
 local ballOwnerId = 0
 
--- Trajectory preview dots for curving free kicks & shots
-local previewFolder = Instance.new("Folder")
-previewFolder.Name = "TrajectoryPreview"
-previewFolder.Parent = Workspace
+-- 3D Click Target Ring (replaces dotted line!)
+local targetMarker = Instance.new("Part")
+targetMarker.Name = "ClickTargetMarker"
+targetMarker.Shape = Enum.PartType.Cylinder
+targetMarker.Size = Vector3.new(0.25, 4.2, 4.2)
+targetMarker.Color = Color3.fromRGB(250, 204, 21)
+targetMarker.Material = Enum.Material.Neon
+targetMarker.Anchored = true
+targetMarker.CanCollide = false
+targetMarker.Transparency = 1
+targetMarker.Parent = Workspace
 
-local previewDots: { Part } = {}
-for i = 1, 16 do
-	local dot = Instance.new("Part")
-	dot.Name = "Dot_" .. i
-	dot.Shape = Enum.PartType.Ball
-	dot.Size = Vector3.one * (0.45 - i * 0.018)
-	dot.Color = Color3.fromRGB(250, 204, 21)
-	dot.Material = Enum.Material.Neon
-	dot.Anchored = true
-	dot.CanCollide = false
-	dot.Transparency = 1
-	dot.Parent = previewFolder
-	previewDots[i] = dot
-end
-
-local function hidePreview()
-	for _, dot in ipairs(previewDots) do
-		dot.Transparency = 1
-	end
-end
-
--- Listen for ball owner & match mode updates
 Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, _vel, _spin, ownerId: number)
 	ballOwnerId = ownerId
 end)
@@ -2713,6 +3503,46 @@ local function getHumanoid(): Humanoid?
 	return char and char:FindFirstChildOfClass("Humanoid")
 end
 
+local function getMouseWorldTarget(): Vector3?
+	if not camera then
+		return nil
+	end
+	local mouseLoc = UserInputService:GetMouseLocation()
+	local unitRay = camera:ViewportPointToRay(mouseLoc.X, mouseLoc.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local excludes: { Instance } = { targetMarker }
+	if player.Character then
+		table.insert(excludes, player.Character)
+	end
+	params.FilterDescendantsInstances = excludes
+
+	local result = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 450, params)
+	if result then
+		return result.Position
+	end
+	return unitRay.Origin + unitRay.Direction * 120
+end
+
+local function findNearbyTrainingBall(hrp: BasePart): BasePart?
+	local lobby = Workspace:FindFirstChild("Stadium") and Workspace.Stadium:FindFirstChild("Lobby")
+	if not lobby then
+		return nil
+	end
+	local closest: BasePart? = nil
+	local bestDist = 13
+	for _, child in ipairs(lobby:GetChildren()) do
+		if child:IsA("BasePart") and child:GetAttribute("IsTrainingBall") then
+			local d = (child.Position - hrp.Position).Magnitude
+			if d < bestDist then
+				bestDist = d
+				closest = child
+			end
+		end
+	end
+	return closest
+end
+
 local function findThroughBallTarget(hrp: BasePart, camDir: Vector3): Vector3
 	local bestScore = -math.huge
 	local bestDir = camDir
@@ -2725,7 +3555,6 @@ local function findThroughBallTarget(hrp: BasePart, camDir: Vector3): Vector3
 				if dist > 8 and dist < 140 then
 					local align = toMate.Unit:Dot(camDir)
 					if align > 0.35 then
-						-- Lead the pass ahead of teammate's velocity
 						local leadPos = oHrp.Position + oHrp.AssemblyLinearVelocity * 0.65
 						local score = align * 100 - dist * 0.25
 						if score > bestScore then
@@ -2759,26 +3588,39 @@ local function releaseKick()
 	end
 	local kickType = chargingKick
 	chargingKick = nil
-	hidePreview()
+	targetMarker.Transparency = 1
 
 	local hrp = getHRP()
 	if not hrp then
 		return
 	end
 
-	local dir = getAimDirection()
-	if kickType == "ThroughBall" then
-		dir = findThroughBallTarget(hrp, dir)
+	local clickedTarget = getMouseWorldTarget()
+	local pwr = math.clamp(chargePower, 0.15, 1)
+
+	-- Check if player is kicking a Lobby Training Ball
+	local trainBall = findNearbyTrainingBall(hrp)
+	local matchBall = Workspace:FindFirstChild("SoccerBall") :: BasePart?
+	local matchDist = if matchBall then (matchBall.Position - hrp.Position).Magnitude else math.huge
+
+	if trainBall and (not matchBall or (trainBall.Position - hrp.Position).Magnitude < matchDist) then
+		local aimPt = clickedTarget or (hrp.Position + getAimDirection() * 60)
+		Network.GetEvent("TrainingBallKick"):FireServer(trainBall, aimPt, pwr)
+	else
+		local dir = getAimDirection()
+		if kickType == "ThroughBall" then
+			dir = findThroughBallTarget(hrp, dir)
+			clickedTarget = nil
+		end
+		Network.GetEvent("KickRequest"):FireServer(kickType, dir, pwr, curveAmount, clickedTarget)
 	end
 
-	Network.GetEvent("KickRequest"):FireServer(kickType, dir, math.clamp(chargePower, 0.15, 1), curveAmount)
 	chargePower = 0
 	curveAmount = 0
 	player:SetAttribute("KickCharge", 0)
 	player:SetAttribute("KickCurve", 0)
 end
 
--- Input Handling
 UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 	if gameProcessed then
 		return
@@ -2808,7 +3650,6 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 			end
 		end
 	elseif input.KeyCode == Enum.KeyCode.Space then
-		-- Goalkeeper Dive if inside either penalty box
 		local hrp = getHRP()
 		if hrp and os.clock() - lastDiveTime >= Config.Kicks.DiveCooldown then
 			local modeCfg = Config.MatchModes[currentMode]
@@ -2846,7 +3687,6 @@ UserInputService.InputEnded:Connect(function(input: InputObject)
 	end
 end)
 
--- Frame Loop: Stamina, Speed, Kick Charge, and Live Curve Trajectory Preview
 RunService.RenderStepped:Connect(function(dt: number)
 	local hum = getHumanoid()
 	local hasBall = (ballOwnerId == player.UserId)
@@ -2865,7 +3705,6 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if chargingKick then
 		chargePower = math.min(1, chargePower + Config.Kicks.ChargeRate * dt)
 
-		-- Adjust curve spin with A / D keys while charging
 		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
 			curveAmount = math.max(-1, curveAmount - 2.2 * dt)
 		elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
@@ -2875,51 +3714,26 @@ RunService.RenderStepped:Connect(function(dt: number)
 		player:SetAttribute("KickCharge", chargePower)
 		player:SetAttribute("KickCurve", curveAmount)
 
-		-- Render live curved trajectory preview from ball position
-		local ball = Workspace:FindFirstChild("SoccerBall") :: BasePart?
-		local hrp = getHRP()
-		if ball and hrp and (ball.Position - hrp.Position).Magnitude < 12 then
-			local dir = getAimDirection()
-			if chargingKick == "ThroughBall" then
-				dir = findThroughBallTarget(hrp, dir)
-			end
-			local maxS = if chargingKick == "Lob"
-				then Config.Kicks.MaxLobPower
-				elseif chargingKick == "ThroughBall" then Config.Kicks.MaxThroughBallPower
-				else Config.Kicks.MaxShotPower
-			local speed = Config.Kicks.MinPower + (maxS - Config.Kicks.MinPower) * chargePower
-			local loft = if chargingKick == "Lob" then (0.55 + 0.2 * chargePower) else (0.22 + 0.18 * chargePower)
-			local launchVel = Vector3.new(dir.X, loft, dir.Z).Unit * speed
-			local spin = Vector3.new(0, curveAmount * Config.Kicks.MaxSpin * (0.4 + 0.6 * chargePower), 0)
-
-			local modeCfg = Config.MatchModes[currentMode]
-			local pts = BallPhysics.PredictTrajectory(
-				ball.Position,
-				launchVel,
-				spin,
-				#previewDots,
-				0.06,
-				modeCfg.PitchLength * 0.5,
-				modeCfg.PitchWidth * 0.5
-			)
-			for i, pt in ipairs(pts) do
-				previewDots[i].Position = pt
-				previewDots[i].Transparency = 0.25 + (i / #previewDots) * 0.55
-			end
+		-- Show glowing 3D target ring where the player is clicking/aiming (no dotted line!)
+		local hitPos = getMouseWorldTarget()
+		if hitPos then
+			targetMarker.CFrame = CFrame.new(hitPos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+			targetMarker.Color = if chargePower > 0.8 then Color3.fromRGB(239, 68, 68) else Color3.fromRGB(250, 204, 21)
+			targetMarker.Transparency = 0.25
 		else
-			hidePreview()
+			targetMarker.Transparency = 1
 		end
 	end
 end)
 ]]></ProtectedString>
       </Properties>
     </Item>
-    <Item class="LocalScript" referent="RBX000012">
+    <Item class="LocalScript" referent="RBX000014">
       <Properties>
         <string name="Name">VFXController</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- VFXController.client.luau
--- Stadium atmosphere, ball speed/curve trail, goal fireworks/confetti, and trophy ceremony FX.
+-- Stadium atmosphere, ball curve trails, animated 3D cheering fans, goal confetti, and trophy ceremony fireworks.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -3001,14 +3815,47 @@ local function burstConfetti(position: Vector3, count: number)
 	end)
 end
 
+-- Animate 3D Fans jumping in the stands on goal!
+local function cheerFans()
+	local stands = Workspace:FindFirstChild("Stadium") and Workspace.Stadium:FindFirstChild("Stands")
+	if not stands then
+		return
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while os.clock() - t0 < 3.5 do
+			local bounce = math.abs(math.sin((os.clock() - t0) * 9)) * 1.4
+			for _, obj in ipairs(stands:GetChildren()) do
+				if obj:IsA("BasePart") and obj:GetAttribute("IsFan") then
+					local baseY = obj:GetAttribute("BaseY") :: number?
+					if baseY then
+						obj.Position = Vector3.new(obj.Position.X, baseY + bounce, obj.Position.Z)
+					end
+				end
+			end
+			task.wait(0.04)
+		end
+		for _, obj in ipairs(stands:GetChildren()) do
+			if obj:IsA("BasePart") and obj:GetAttribute("IsFan") then
+				local baseY = obj:GetAttribute("BaseY") :: number?
+				if baseY then
+					obj.Position = Vector3.new(obj.Position.X, baseY, obj.Position.Z)
+				end
+			end
+		end
+	end)
+end
+
 Network.GetEvent("GoalScoredVFX").OnClientEvent:Connect(function()
 	local ball = Workspace:FindFirstChild("SoccerBall")
 	if ball and ball:IsA("BasePart") then
 		burstConfetti(ball.Position + Vector3.new(0, 3, 0), 90)
 	end
+	cheerFans()
 end)
 
 Network.GetEvent("TrophyCeremonyStart").OnClientEvent:Connect(function()
+	cheerFans()
 	for i = 1, 5 do
 		task.delay((i - 1) * 1.2, function()
 			burstConfetti(Vector3.new(0, 12, 0), 120)

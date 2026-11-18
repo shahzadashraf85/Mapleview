@@ -1,9 +1,10 @@
 --!strict
 -- MatchManager.server.luau
--- Orchestrates teams, 5v5 / 11v11 match modes, match clock, goals, set pieces, and the championship trophy ceremony.
+-- Orchestrates teams, Lobby/Training Pitch, 5v5/11v11 modes, Stadium themes, Admin Panel (ninja373670), and Trophy Ceremony.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Teams = game:GetService("Teams")
 local Workspace = game:GetService("Workspace")
 
@@ -12,10 +13,11 @@ local Network = require(ReplicatedStorage.Shared.Network)
 
 local BallManager = require(script.Parent.BallManager)
 local DataService = require(script.Parent.DataService)
+local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
 local KitAndCelebrationService = require(script.Parent.KitAndCelebrationService)
+local ModelFactory = require(script.Parent.ModelFactory)
 local StadiumBuilder = require(script.Parent.StadiumBuilder)
 
--- 1. Initialize Remotes & Teams
 Network.InitServer()
 
 local function getOrCreateTeam(name: string, color: BrickColor): Team
@@ -34,14 +36,13 @@ end
 local homeTeam = getOrCreateTeam(Config.Teams.Home.Name, Config.Teams.Home.Color)
 local awayTeam = getOrCreateTeam(Config.Teams.Away.Name, Config.Teams.Away.Color)
 
--- 2. Initialize Services
 DataService.Init(function(player)
 	KitAndCelebrationService.ApplyKit(player)
 end)
 KitAndCelebrationService.Init(DataService.GetProfile)
 
--- 3. Match State
 local currentMode: Config.MatchMode = Config.DefaultMode
+local currentStadium: Config.StadiumThemeId = Config.DefaultStadium
 local modeVotes: { [number]: Config.MatchMode } = {}
 
 local matchPhase = "Intermission"
@@ -49,8 +50,13 @@ local halfNumber = 1
 local timeRemaining = Config.IntermissionSeconds
 local homeScore = 0
 local awayScore = 0
-local statusBanner = "Warmup — Next Match Starting Soon"
+local statusBanner = "Lobby Training Pitch — Next Match Starting Soon"
 local goalScoredFlag = false
+local forceSkipPhase = false
+
+local function isAdmin(player: Player): boolean
+	return player.Name == Config.AdminUsername or RunService:IsStudio()
+end
 
 local function assignTeamBalanced(player: Player)
 	local homeCount = #homeTeam:GetPlayers()
@@ -72,7 +78,6 @@ for _, p in ipairs(Players:GetPlayers()) do
 	end
 end
 
--- Mode voting
 Network.GetEvent("VoteMatchMode").OnServerEvent:Connect(function(player: Player, mode: string)
 	if mode == "5v5" or mode == "11v11" then
 		modeVotes[player.UserId] = mode :: Config.MatchMode
@@ -88,10 +93,7 @@ local function resolveModeVote(): Config.MatchMode
 			v11 += 1
 		end
 	end
-	if v11 > v5 then
-		return "11v11"
-	end
-	return "5v5"
+	return if v11 > v5 then "11v11" else "5v5"
 end
 
 local function broadcastMatchState()
@@ -102,8 +104,21 @@ local function broadcastMatchState()
 		HomeScore = homeScore,
 		AwayScore = awayScore,
 		Mode = currentMode,
+		Stadium = currentStadium,
 		Status = statusBanner,
 	})
+end
+
+local function teleportPlayersToLobby()
+	local c = Config.LobbyCenter
+	for i, player in ipairs(Players:GetPlayers()) do
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			local offX = ((i - 1) % 4 - 1.5) * 8
+			hrp.CFrame = CFrame.lookAt(c + Vector3.new(offX, 3.5, -56), c + Vector3.new(0, 3.5, 0))
+			hrp.AssemblyLinearVelocity = Vector3.zero
+		end
+	end
 end
 
 local function positionPlayersForKickoff()
@@ -129,59 +144,66 @@ local function positionPlayersForKickoff()
 	end
 end
 
-local function spawnChampionshipTrophy(winningTeamName: string)
-	local old = Workspace:FindFirstChild("ChampionshipTrophy")
-	if old then
-		old:Destroy()
+-- Admin Panel Commands (strictly restricted to ninja373670)
+Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, cmd: string, arg: any)
+	if not isAdmin(player) then
+		return
 	end
+	local halfL = Config.MatchModes[currentMode].PitchLength * 0.5
 
-	local model = Instance.new("Model")
-	model.Name = "ChampionshipTrophy"
+	if cmd == "FreeKick" then
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			local spot = Vector3.new(hrp.Position.X, Config.Ball.Radius, hrp.Position.Z)
+			BallManager.ResetToSpot(spot, false)
+			statusBanner = "ADMIN FREE KICK AWARDED!"
+			broadcastMatchState()
+		end
+	elseif cmd == "PenaltyHome" then
+		-- Home shoots at AwayGoal (+halfL)
+		local spot = Vector3.new(0, Config.Ball.Radius, halfL - Config.Kicks.GKBoxDepth * 0.68)
+		BallManager.ResetToSpot(spot, false)
+		statusBanner = "PENALTY KICK — HOME FC!"
+		broadcastMatchState()
+	elseif cmd == "PenaltyAway" then
+		-- Away shoots at HomeGoal (-halfL)
+		local spot = Vector3.new(0, Config.Ball.Radius, -(halfL - Config.Kicks.GKBoxDepth * 0.68))
+		BallManager.ResetToSpot(spot, false)
+		statusBanner = "PENALTY KICK — AWAY UNITED!"
+		broadcastMatchState()
+	elseif cmd == "SetStadium" and type(arg) == "string" and (Config.StadiumThemes :: any)[arg] then
+		currentStadium = arg :: Config.StadiumThemeId
+		StadiumBuilder.Build(currentMode, currentStadium)
+		GoalkeeperAI.Rebuild(currentMode)
+		statusBanner = "Stadium Changed: " .. (Config.StadiumThemes :: any)[arg].Name
+		broadcastMatchState()
+	elseif cmd == "SetMode" and (arg == "5v5" or arg == "11v11") then
+		currentMode = arg :: Config.MatchMode
+		StadiumBuilder.Build(currentMode, currentStadium)
+		GoalkeeperAI.Rebuild(currentMode)
+		BallManager.SetMatchActive(matchPhase == "Playing", currentMode)
+		statusBanner = "Match Format Changed: " .. currentMode
+		broadcastMatchState()
+	elseif cmd == "ResetBall" then
+		BallManager.ResetToSpot(Vector3.zero, false)
+		statusBanner = "Ball Reset to Center"
+		broadcastMatchState()
+	elseif cmd == "AddGoalHome" then
+		homeScore += 1
+		broadcastMatchState()
+	elseif cmd == "AddGoalAway" then
+		awayScore += 1
+		broadcastMatchState()
+	elseif cmd == "SkipPhase" then
+		forceSkipPhase = true
+	end
+end)
 
-	local pedestal = Instance.new("Part")
-	pedestal.Name = "Pedestal"
-	pedestal.Size = Vector3.new(6, 2.5, 6)
-	pedestal.Position = Vector3.new(0, 1.25, 0)
-	pedestal.Color = Color3.fromRGB(15, 23, 42)
-	pedestal.Material = Enum.Material.Marble
-	pedestal.Anchored = true
-	pedestal.Parent = model
-
-	local cup = Instance.new("Part")
-	cup.Name = "GoldenCup"
-	cup.Shape = Enum.PartType.Cylinder
-	cup.Size = Vector3.new(5.5, 3.6, 3.6)
-	cup.CFrame = CFrame.new(0, 5.2, 0) * CFrame.Angles(0, 0, math.rad(90))
-	cup.Color = Color3.fromRGB(250, 204, 21)
-	cup.Material = Enum.Material.Metal
-	cup.Reflectance = 0.45
-	cup.Anchored = true
-	cup.Parent = model
-
-	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromOffset(240, 60)
-	bb.StudsOffset = Vector3.new(0, 5, 0)
-	bb.AlwaysOnTop = true
-	bb.Parent = cup
-
-	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.fromScale(1, 1)
-	lbl.BackgroundTransparency = 1
-	lbl.Text = "CHAMPIONS: " .. string.upper(winningTeamName)
-	lbl.TextColor3 = Color3.fromRGB(250, 204, 21)
-	lbl.TextStrokeTransparency = 0.2
-	lbl.Font = Enum.Font.GothamBlack
-	lbl.TextScaled = true
-	lbl.Parent = bb
-
-	model.Parent = Workspace
-end
-
--- Build initial stadium & init BallManager
-StadiumBuilder.Build(currentMode)
+-- Build initial stadium + lobby + goalkeepers
+StadiumBuilder.Build(currentMode, currentStadium)
+GoalkeeperAI.Rebuild(currentMode)
 
 BallManager.Init(
-	-- On Goal Scored
 	function(scoringTeam, scorer, assister)
 		if goalScoredFlag or matchPhase ~= "Playing" then
 			return
@@ -225,13 +247,15 @@ BallManager.Init(
 			end
 		end)
 	end,
-	-- On Goalkeeper Save
 	function(keeper)
 		DataService.AwardSave(keeper)
 		statusBanner = "GREAT SAVE by " .. keeper.DisplayName .. "!"
 		broadcastMatchState()
 	end,
-	-- On Set Piece
+	function()
+		statusBanner = "KEEPER SAVE!"
+		broadcastMatchState()
+	end,
 	function(kind, _spot, team)
 		local teamName = if team == "Home" then Config.Teams.Home.Name else Config.Teams.Away.Name
 		statusBanner = string.format("%s — %s", kind, teamName)
@@ -239,81 +263,66 @@ BallManager.Init(
 	end
 )
 
--- 4. Main Match Loop
+local function waitCountdown(seconds: number, pauseOnGoal: boolean)
+	timeRemaining = seconds
+	forceSkipPhase = false
+	while timeRemaining > 0 and not forceSkipPhase do
+		broadcastMatchState()
+		task.wait(1)
+		if not (pauseOnGoal and goalScoredFlag) then
+			timeRemaining -= 1
+		end
+	end
+end
+
+-- Main Match Loop
 task.spawn(function()
 	while true do
-		-- INTERMISSION
 		matchPhase = "Intermission"
 		halfNumber = 1
 		homeScore = 0
 		awayScore = 0
-		timeRemaining = Config.IntermissionSeconds
 		BallManager.SetMatchActive(false, currentMode)
-		statusBanner = "Intermission — Vote 5v5 or 11v11!"
+		statusBanner = "Lobby Training Pitch — Vote 5v5 or 11v11!"
 		local oldTrophy = Workspace:FindFirstChild("ChampionshipTrophy")
 		if oldTrophy then
 			oldTrophy:Destroy()
 		end
+		teleportPlayersToLobby()
+		waitCountdown(Config.IntermissionSeconds, false)
 
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			timeRemaining -= 1
-		end
-
-		-- Apply voted mode & rebuild stadium if changed
 		local nextMode = resolveModeVote()
 		if nextMode ~= currentMode then
 			currentMode = nextMode
-			StadiumBuilder.Build(currentMode)
+			StadiumBuilder.Build(currentMode, currentStadium)
+			GoalkeeperAI.Rebuild(currentMode)
 		end
 
-		-- 1ST HALF
+		-- 1st Half
 		matchPhase = "Playing"
 		halfNumber = 1
-		timeRemaining = Config.MatchModes[currentMode].HalfDurationSeconds
 		statusBanner = "1st Half — Kickoff!"
 		BallManager.ResetToSpot(Vector3.zero, false)
 		positionPlayersForKickoff()
 		BallManager.SetMatchActive(true, currentMode)
+		waitCountdown(Config.MatchModes[currentMode].HalfDurationSeconds, true)
 
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			if not goalScoredFlag then
-				timeRemaining -= 1
-			end
-		end
-
-		-- HALF TIME
+		-- Half-Time
 		matchPhase = "HalfTime"
 		BallManager.SetMatchActive(false, currentMode)
-		timeRemaining = Config.HalfTimeSeconds
 		statusBanner = "Half-Time Break"
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			timeRemaining -= 1
-		end
+		waitCountdown(Config.HalfTimeSeconds, false)
 
-		-- 2ND HALF
+		-- 2nd Half
 		matchPhase = "Playing"
 		halfNumber = 2
-		timeRemaining = Config.MatchModes[currentMode].HalfDurationSeconds
 		statusBanner = "2nd Half — Kickoff!"
 		BallManager.ResetToSpot(Vector3.zero, false)
 		positionPlayersForKickoff()
 		BallManager.SetMatchActive(true, currentMode)
+		waitCountdown(Config.MatchModes[currentMode].HalfDurationSeconds, true)
 
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			if not goalScoredFlag then
-				timeRemaining -= 1
-			end
-		end
-
-		-- FULL TIME & TROPHY CEREMONY
+		-- Trophy Ceremony
 		matchPhase = "TrophyCeremony"
 		BallManager.SetMatchActive(false, currentMode)
 		local winner: "Home" | "Away" | "Draw" = "Draw"
@@ -327,7 +336,7 @@ task.spawn(function()
 		end
 
 		statusBanner = "FULL TIME! " .. winnerName .. " Wins!"
-		spawnChampionshipTrophy(winnerName)
+		ModelFactory.BuildTrophy(Workspace, Vector3.new(0, 0, 0), "CHAMPIONS: " .. string.upper(winnerName))
 		Network.GetEvent("TrophyCeremonyStart"):FireAllClients(winnerName)
 
 		for _, player in ipairs(Players:GetPlayers()) do
@@ -338,11 +347,6 @@ task.spawn(function()
 			end
 		end
 
-		timeRemaining = Config.TrophyCeremonySeconds
-		while timeRemaining > 0 do
-			broadcastMatchState()
-			task.wait(1)
-			timeRemaining -= 1
-		end
+		waitCountdown(Config.TrophyCeremonySeconds, false)
 	end
 end)

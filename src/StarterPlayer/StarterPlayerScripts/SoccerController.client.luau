@@ -1,6 +1,6 @@
 --!strict
 -- SoccerController.client.luau
--- Client input, stamina/sprint, hold-to-charge curving shots, pinpoint through-balls, GK dives, and tackles.
+-- Click-to-target aiming (no dotted line!), power charging, curve spin, through-balls, GK dives, tackles, and lobby training pitch kicks.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,7 +8,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
-local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Network = require(ReplicatedStorage.Shared.Network)
 
@@ -25,33 +24,18 @@ local lastDiveTime = 0
 local currentMode: Config.MatchMode = Config.DefaultMode
 local ballOwnerId = 0
 
--- Trajectory preview dots for curving free kicks & shots
-local previewFolder = Instance.new("Folder")
-previewFolder.Name = "TrajectoryPreview"
-previewFolder.Parent = Workspace
+-- 3D Click Target Ring (replaces dotted line!)
+local targetMarker = Instance.new("Part")
+targetMarker.Name = "ClickTargetMarker"
+targetMarker.Shape = Enum.PartType.Cylinder
+targetMarker.Size = Vector3.new(0.25, 4.2, 4.2)
+targetMarker.Color = Color3.fromRGB(250, 204, 21)
+targetMarker.Material = Enum.Material.Neon
+targetMarker.Anchored = true
+targetMarker.CanCollide = false
+targetMarker.Transparency = 1
+targetMarker.Parent = Workspace
 
-local previewDots: { Part } = {}
-for i = 1, 16 do
-	local dot = Instance.new("Part")
-	dot.Name = "Dot_" .. i
-	dot.Shape = Enum.PartType.Ball
-	dot.Size = Vector3.one * (0.45 - i * 0.018)
-	dot.Color = Color3.fromRGB(250, 204, 21)
-	dot.Material = Enum.Material.Neon
-	dot.Anchored = true
-	dot.CanCollide = false
-	dot.Transparency = 1
-	dot.Parent = previewFolder
-	previewDots[i] = dot
-end
-
-local function hidePreview()
-	for _, dot in ipairs(previewDots) do
-		dot.Transparency = 1
-	end
-end
-
--- Listen for ball owner & match mode updates
 Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, _vel, _spin, ownerId: number)
 	ballOwnerId = ownerId
 end)
@@ -72,6 +56,46 @@ local function getHumanoid(): Humanoid?
 	return char and char:FindFirstChildOfClass("Humanoid")
 end
 
+local function getMouseWorldTarget(): Vector3?
+	if not camera then
+		return nil
+	end
+	local mouseLoc = UserInputService:GetMouseLocation()
+	local unitRay = camera:ViewportPointToRay(mouseLoc.X, mouseLoc.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local excludes: { Instance } = { targetMarker }
+	if player.Character then
+		table.insert(excludes, player.Character)
+	end
+	params.FilterDescendantsInstances = excludes
+
+	local result = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 450, params)
+	if result then
+		return result.Position
+	end
+	return unitRay.Origin + unitRay.Direction * 120
+end
+
+local function findNearbyTrainingBall(hrp: BasePart): BasePart?
+	local lobby = Workspace:FindFirstChild("Stadium") and Workspace.Stadium:FindFirstChild("Lobby")
+	if not lobby then
+		return nil
+	end
+	local closest: BasePart? = nil
+	local bestDist = 13
+	for _, child in ipairs(lobby:GetChildren()) do
+		if child:IsA("BasePart") and child:GetAttribute("IsTrainingBall") then
+			local d = (child.Position - hrp.Position).Magnitude
+			if d < bestDist then
+				bestDist = d
+				closest = child
+			end
+		end
+	end
+	return closest
+end
+
 local function findThroughBallTarget(hrp: BasePart, camDir: Vector3): Vector3
 	local bestScore = -math.huge
 	local bestDir = camDir
@@ -84,7 +108,6 @@ local function findThroughBallTarget(hrp: BasePart, camDir: Vector3): Vector3
 				if dist > 8 and dist < 140 then
 					local align = toMate.Unit:Dot(camDir)
 					if align > 0.35 then
-						-- Lead the pass ahead of teammate's velocity
 						local leadPos = oHrp.Position + oHrp.AssemblyLinearVelocity * 0.65
 						local score = align * 100 - dist * 0.25
 						if score > bestScore then
@@ -118,26 +141,39 @@ local function releaseKick()
 	end
 	local kickType = chargingKick
 	chargingKick = nil
-	hidePreview()
+	targetMarker.Transparency = 1
 
 	local hrp = getHRP()
 	if not hrp then
 		return
 	end
 
-	local dir = getAimDirection()
-	if kickType == "ThroughBall" then
-		dir = findThroughBallTarget(hrp, dir)
+	local clickedTarget = getMouseWorldTarget()
+	local pwr = math.clamp(chargePower, 0.15, 1)
+
+	-- Check if player is kicking a Lobby Training Ball
+	local trainBall = findNearbyTrainingBall(hrp)
+	local matchBall = Workspace:FindFirstChild("SoccerBall") :: BasePart?
+	local matchDist = if matchBall then (matchBall.Position - hrp.Position).Magnitude else math.huge
+
+	if trainBall and (not matchBall or (trainBall.Position - hrp.Position).Magnitude < matchDist) then
+		local aimPt = clickedTarget or (hrp.Position + getAimDirection() * 60)
+		Network.GetEvent("TrainingBallKick"):FireServer(trainBall, aimPt, pwr)
+	else
+		local dir = getAimDirection()
+		if kickType == "ThroughBall" then
+			dir = findThroughBallTarget(hrp, dir)
+			clickedTarget = nil
+		end
+		Network.GetEvent("KickRequest"):FireServer(kickType, dir, pwr, curveAmount, clickedTarget)
 	end
 
-	Network.GetEvent("KickRequest"):FireServer(kickType, dir, math.clamp(chargePower, 0.15, 1), curveAmount)
 	chargePower = 0
 	curveAmount = 0
 	player:SetAttribute("KickCharge", 0)
 	player:SetAttribute("KickCurve", 0)
 end
 
--- Input Handling
 UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 	if gameProcessed then
 		return
@@ -167,7 +203,6 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 			end
 		end
 	elseif input.KeyCode == Enum.KeyCode.Space then
-		-- Goalkeeper Dive if inside either penalty box
 		local hrp = getHRP()
 		if hrp and os.clock() - lastDiveTime >= Config.Kicks.DiveCooldown then
 			local modeCfg = Config.MatchModes[currentMode]
@@ -205,7 +240,6 @@ UserInputService.InputEnded:Connect(function(input: InputObject)
 	end
 end)
 
--- Frame Loop: Stamina, Speed, Kick Charge, and Live Curve Trajectory Preview
 RunService.RenderStepped:Connect(function(dt: number)
 	local hum = getHumanoid()
 	local hasBall = (ballOwnerId == player.UserId)
@@ -224,7 +258,6 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if chargingKick then
 		chargePower = math.min(1, chargePower + Config.Kicks.ChargeRate * dt)
 
-		-- Adjust curve spin with A / D keys while charging
 		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
 			curveAmount = math.max(-1, curveAmount - 2.2 * dt)
 		elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
@@ -234,39 +267,14 @@ RunService.RenderStepped:Connect(function(dt: number)
 		player:SetAttribute("KickCharge", chargePower)
 		player:SetAttribute("KickCurve", curveAmount)
 
-		-- Render live curved trajectory preview from ball position
-		local ball = Workspace:FindFirstChild("SoccerBall") :: BasePart?
-		local hrp = getHRP()
-		if ball and hrp and (ball.Position - hrp.Position).Magnitude < 12 then
-			local dir = getAimDirection()
-			if chargingKick == "ThroughBall" then
-				dir = findThroughBallTarget(hrp, dir)
-			end
-			local maxS = if chargingKick == "Lob"
-				then Config.Kicks.MaxLobPower
-				elseif chargingKick == "ThroughBall" then Config.Kicks.MaxThroughBallPower
-				else Config.Kicks.MaxShotPower
-			local speed = Config.Kicks.MinPower + (maxS - Config.Kicks.MinPower) * chargePower
-			local loft = if chargingKick == "Lob" then (0.55 + 0.2 * chargePower) else (0.22 + 0.18 * chargePower)
-			local launchVel = Vector3.new(dir.X, loft, dir.Z).Unit * speed
-			local spin = Vector3.new(0, curveAmount * Config.Kicks.MaxSpin * (0.4 + 0.6 * chargePower), 0)
-
-			local modeCfg = Config.MatchModes[currentMode]
-			local pts = BallPhysics.PredictTrajectory(
-				ball.Position,
-				launchVel,
-				spin,
-				#previewDots,
-				0.06,
-				modeCfg.PitchLength * 0.5,
-				modeCfg.PitchWidth * 0.5
-			)
-			for i, pt in ipairs(pts) do
-				previewDots[i].Position = pt
-				previewDots[i].Transparency = 0.25 + (i / #previewDots) * 0.55
-			end
+		-- Show glowing 3D target ring where the player is clicking/aiming (no dotted line!)
+		local hitPos = getMouseWorldTarget()
+		if hitPos then
+			targetMarker.CFrame = CFrame.new(hitPos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+			targetMarker.Color = if chargePower > 0.8 then Color3.fromRGB(239, 68, 68) else Color3.fromRGB(250, 204, 21)
+			targetMarker.Transparency = 0.25
 		else
-			hidePreview()
+			targetMarker.Transparency = 1
 		end
 	end
 end)
