@@ -26,37 +26,91 @@ function KitAndCelebrationService.ApplyKit(player: Player)
 		teamAccent = player.Team.TeamColor.Color
 	end
 
-	-- Remove existing Shirt/Pants so kit colors show crisply on any rig
+	-- Strip accessories, shirts, pants, and meshes for the clean Ragdoll Stick-Figure look!
 	for _, child in ipairs(character:GetChildren()) do
-		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
+		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") or child:IsA("Accessory") or child:IsA("CharacterMesh") then
 			child:Destroy()
 		end
 	end
 
+	-- Scale R15 Humanoid into a tall, thin, wobbly Ragdoll Stick-Figure with a big head!
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		local function setScale(scaleName: string, val: number)
+			local nv = humanoid:FindFirstChild(scaleName)
+			if not nv then
+				nv = Instance.new("NumberValue")
+				nv.Name = scaleName
+				nv.Parent = humanoid
+			end
+			(nv :: NumberValue).Value = val
+		end
+		setScale("BodyWidthScale", 0.42)
+		setScale("BodyDepthScale", 0.42)
+		setScale("BodyHeightScale", 1.18)
+		setScale("HeadScale", 1.38)
+	end
+
 	for _, part in ipairs(character:GetDescendants()) do
 		if part:IsA("BasePart") then
+			part.Material = Enum.Material.SmoothPlastic
 			local n = part.Name
 			if n == "Torso" or n == "UpperTorso" or n == "LowerTorso" then
 				part.Color = kit.Primary
 			elseif string.find(n, "Arm") or string.find(n, "Hand") then
-				-- Keep sleeves matching primary kit
-				if string.find(n, "UpperArm") then
-					part.Color = kit.Primary
-				end
-			elseif string.find(n, "Leg") or n == "LeftUpperLeg" or n == "RightUpperLeg" then
+				part.Color = if string.find(n, "UpperArm") then kit.Primary else Color3.fromRGB(245, 210, 175)
+			elseif string.find(n, "Leg") then
 				part.Color = kit.Secondary
 			elseif string.find(n, "Foot") then
 				part.Color = kit.Accent
+			elseif n == "Head" then
+				part.Color = Color3.fromRGB(245, 210, 175)
 			end
 		end
 	end
 
-	-- Overhead Club & Kit Nameplate
+	-- Overhead Club & Kit Nameplate + Goofy 3D Ragdoll Eyes
 	local head = character:FindFirstChild("Head")
 	if head and head:IsA("BasePart") then
-		local old = head:FindFirstChild("PlayerTag")
-		if old then
-			old:Destroy()
+		for _, oldEye in ipairs(head:GetChildren()) do
+			if oldEye.Name == "RagdollEye" or oldEye.Name == "RagdollPupil" or oldEye.Name == "PlayerTag" then
+				oldEye:Destroy()
+			end
+		end
+
+		-- Big goofy 3D Ragdoll Eyes!
+		for _, side in ipairs({ -1, 1 }) do
+			local eye = Instance.new("Part")
+			eye.Name = "RagdollEye"
+			eye.Shape = Enum.PartType.Ball
+			eye.Size = Vector3.one * 0.48
+			eye.Color = Color3.new(1, 1, 1)
+			eye.Material = Enum.Material.SmoothPlastic
+			eye.CanCollide = false
+			eye.Massless = true
+			eye.CFrame = head.CFrame * CFrame.new(side * 0.28, 0.14, -0.56)
+			eye.Parent = head
+
+			local w1 = Instance.new("WeldConstraint")
+			w1.Part0 = head
+			w1.Part1 = eye
+			w1.Parent = eye
+
+			local pupil = Instance.new("Part")
+			pupil.Name = "RagdollPupil"
+			pupil.Shape = Enum.PartType.Ball
+			pupil.Size = Vector3.one * 0.24
+			pupil.Color = Color3.new(0, 0, 0)
+			pupil.Material = Enum.Material.SmoothPlastic
+			pupil.CanCollide = false
+			pupil.Massless = true
+			pupil.CFrame = eye.CFrame * CFrame.new(side * 0.04, 0, -0.18)
+			pupil.Parent = head
+
+			local w2 = Instance.new("WeldConstraint")
+			w2.Part0 = eye
+			w2.Part1 = pupil
+			w2.Parent = pupil
 		end
 		local bb = Instance.new("BillboardGui")
 		bb.Name = "PlayerTag"
