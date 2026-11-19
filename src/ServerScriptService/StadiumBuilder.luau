@@ -617,6 +617,14 @@ function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThe
 		buildLine(linesFolder, "BoxLeft_" .. endSign, Vector3.new(-boxHalfW, y, goalZ), Vector3.new(-boxHalfW, y, boxZ), lw)
 		buildLine(linesFolder, "BoxRight_" .. endSign, Vector3.new(boxHalfW, y, goalZ), Vector3.new(boxHalfW, y, boxZ), lw)
 
+		-- 6-Yard Goal Box
+		local sixDepth = 14
+		local sixHalfW = modeCfg.GoalWidth * 0.5 + 8
+		local sixZ = goalZ - endSign * sixDepth
+		buildLine(linesFolder, "SixFront_" .. endSign, Vector3.new(-sixHalfW, y, sixZ), Vector3.new(sixHalfW, y, sixZ), lw)
+		buildLine(linesFolder, "SixLeft_" .. endSign, Vector3.new(-sixHalfW, y, goalZ), Vector3.new(-sixHalfW, y, sixZ), lw)
+		buildLine(linesFolder, "SixRight_" .. endSign, Vector3.new(sixHalfW, y, goalZ), Vector3.new(sixHalfW, y, sixZ), lw)
+
 		makePart({
 			Name = "PenaltySpot_" .. endSign,
 			Size = Vector3.new(1.6, 0.08, 1.6),
@@ -625,6 +633,10 @@ function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThe
 			CanCollide = false,
 			Parent = linesFolder,
 		})
+
+		-- 3D Broadcast TV Camera Towers behind each goal
+		ModelFactory.BuildCameraTower(stadium, Vector3.new(-boxHalfW, 0, goalZ + endSign * 12), Vector3.new(0, 0, goalZ), themeCfg.Accent)
+		ModelFactory.BuildCameraTower(stadium, Vector3.new(boxHalfW, 0, goalZ + endSign * 12), Vector3.new(0, 0, goalZ), themeCfg.Accent)
 	end
 
 	-- Corner flags

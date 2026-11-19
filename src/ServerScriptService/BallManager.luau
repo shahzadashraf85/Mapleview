@@ -147,19 +147,24 @@ function BallManager.Init(
 			local pwr = math.clamp(powerRatio, 0.1, 1)
 			local curve = math.clamp(curveAmount, -1, 1)
 
+			local shootLvl = math.clamp((player:GetAttribute("Stat_Shooting") :: number?) or 1, 1, 5)
+			local passLvl = math.clamp((player:GetAttribute("Stat_Passing") :: number?) or 1, 1, 5)
+			local shootMult = 1 + (shootLvl - 1) * 0.04
+			local passMult = 1 + (passLvl - 1) * 0.04
+
 			local speed = Config.Kicks.MinPower
 			local loft = 0.18
 			if kickType == "Shoot" or kickType == "FreeKick" then
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr) * shootMult
 				loft = 0.18 + 0.18 * pwr
 			elseif kickType == "Lob" then
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxLobPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxLobPower - Config.Kicks.MinPower) * pwr) * passMult
 				loft = 0.52 + 0.2 * pwr
 			elseif kickType == "ThroughBall" then
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxThroughBallPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxThroughBallPower - Config.Kicks.MinPower) * pwr) * passMult
 				loft = 0.08
 			else
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxPassPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxPassPower - Config.Kicks.MinPower) * pwr) * passMult
 				loft = 0.06
 			end
 

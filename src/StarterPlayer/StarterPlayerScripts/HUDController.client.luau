@@ -340,6 +340,29 @@ local function renderTab()
 			nil,
 			nil
 		)
+
+		local stats = prof.Stats or { Pace = 1, Shooting = 1, Passing = 1, Goalkeeping = 1 }
+		for _, statInfo in ipairs({
+			{ Key = "Pace", Desc = "Increases Sprint Speed & Stamina Regen" },
+			{ Key = "Shooting", Desc = "Increases Shot Power & Curve Spin" },
+			{ Key = "Passing", Desc = "Increases Through-Ball & Lob Speed" },
+			{ Key = "Goalkeeping", Desc = "Increases Keeper Dive Speed & Reach" },
+		}) do
+			local lvl = (stats :: any)[statInfo.Key] or 1
+			local maxed = (lvl >= 5)
+			local cost = 100 * lvl
+			makeRowCard(
+				string.format("%s  (Lv. %d / 5)", statInfo.Key, lvl),
+				statInfo.Desc,
+				if maxed then "MAXED" else ("Upgrade (" .. cost .. ")"),
+				if maxed then Color3.fromRGB(100, 116, 139) else Color3.fromRGB(22, 163, 74),
+				function()
+					if not maxed then
+						Network.GetEvent("UpgradeStat"):FireServer(statInfo.Key)
+					end
+				end
+			)
+		end
 		makeRowCard("Vote Match Format: 5v5 Fast-Paced", "Shorter pitch, rapid counter-attacks", "Vote 5v5", Color3.fromRGB(22, 163, 74), function()
 			Network.GetEvent("VoteMatchMode"):FireServer("5v5")
 		end)
@@ -467,6 +490,34 @@ afkBtn.MouseButton1Click:Connect(function()
 		afkBtn.BackgroundColor3 = Color3.fromRGB(22, 163, 74)
 	end
 	Network.GetEvent("ToggleAFK"):FireServer(isAfk)
+end)
+
+-- 4.55 Day / Night Stadium Lighting Toggle
+local isDayMode = false
+local dayNightBtn = Instance.new("TextButton")
+dayNightBtn.Size = UDim2.fromOffset(118, 38)
+dayNightBtn.Position = UDim2.new(0, 206, 0, 16)
+dayNightBtn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+dayNightBtn.Text = "NIGHT MODE"
+dayNightBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+dayNightBtn.Font = Enum.Font.GothamBold
+dayNightBtn.TextSize = 12
+dayNightBtn.Parent = gui
+makeCorner(dayNightBtn, 10)
+makeStroke(dayNightBtn, Color3.fromRGB(56, 189, 248), 1.2)
+
+dayNightBtn.MouseButton1Click:Connect(function()
+	local Lighting = game:GetService("Lighting")
+	isDayMode = not isDayMode
+	if isDayMode then
+		Lighting.ClockTime = 14.5
+		dayNightBtn.Text = "DAY MODE"
+		dayNightBtn.BackgroundColor3 = Color3.fromRGB(14, 116, 144)
+	else
+		Lighting.ClockTime = 21.0
+		dayNightBtn.Text = "NIGHT MODE"
+		dayNightBtn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	end
 end)
 
 -- 4.6 Global Chat Announcement Banner

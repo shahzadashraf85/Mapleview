@@ -40,7 +40,67 @@ local function attachBallVFX()
 	ballTrail = trail
 end
 
-Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, vel: Vector3, spin: Vector3)
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local function playSFX(soundId: string, volume: number, pitch: number?)
+	local s = Instance.new("Sound")
+	s.SoundId = soundId
+	s.Volume = volume
+	s.PlaybackSpeed = pitch or 1
+	s.Parent = SoundService
+	s:Play()
+	s.Ended:Connect(function()
+		s:Destroy()
+	end)
+	task.delay(6, function()
+		if s.Parent then
+			s:Destroy()
+		end
+	end)
+end
+
+local function cameraShake(intensity: number, duration: number)
+	local cam = Workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while os.clock() - t0 < duration do
+			local decay = 1 - ((os.clock() - t0) / duration)
+			local ox = (math.random() - 0.5) * intensity * decay
+			local oy = (math.random() - 0.5) * intensity * decay
+			cam.CFrame = cam.CFrame * CFrame.new(ox, oy, 0)
+			task.wait()
+		end
+	end)
+end
+
+local function spawnShockwaveRing(pos: Vector3, color: Color3)
+	local ring = Instance.new("Part")
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Size = Vector3.new(0.25, 3, 3)
+	ring.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	ring.Color = color
+	ring.Material = Enum.Material.Neon
+	ring.Transparency = 0.2
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.Parent = Workspace
+
+	local tween = TweenService:Create(ring, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.15, 16, 16),
+		Transparency = 1,
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		ring:Destroy()
+	end)
+end
+
+local lastShotFXTime = 0
+Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(pos: Vector3, vel: Vector3, spin: Vector3)
 	attachBallVFX()
 	if ballTrail then
 		local fast = vel.Magnitude > 52
@@ -50,6 +110,14 @@ Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, vel: Ve
 		else
 			ballTrail.Color = ColorSequence.new(Color3.fromRGB(250, 204, 21), Color3.fromRGB(255, 255, 255))
 		end
+	end
+
+	-- Big Power Shot VFX & SFX
+	if vel.Magnitude > 88 and os.clock() - lastShotFXTime > 0.6 then
+		lastShotFXTime = os.clock()
+		spawnShockwaveRing(pos, if spin.Magnitude > 5 then Color3.fromRGB(56, 189, 248) else Color3.fromRGB(250, 204, 21))
+		playSFX("rbxassetid://131961136", 0.55, 0.9)
+		cameraShake(0.35, 0.22)
 	end
 end)
 

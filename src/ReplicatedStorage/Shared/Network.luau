@@ -28,6 +28,7 @@ local REMOTE_EVENTS = {
 	"GlobalAnnouncement",  -- Server -> Clients: global chat/banner broadcast from admin
 	"DiscoPartyStart",     -- Server -> Clients: 3-minute disco lights + raining tacos FX
 	"OpenHammerPanel",     -- Server -> Client: triggered when ninja373670 activates the Hammer Tool
+	"UpgradeStat",         -- Client -> Server: upgrade Pace / Shooting / Passing / Goalkeeping
 }
 
 local REMOTE_FUNCTIONS = {

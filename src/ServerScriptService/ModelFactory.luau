@@ -809,4 +809,50 @@ function ModelFactory.BuildConcertStage(parent: Instance, center: Vector3): Fold
 	return concert
 end
 
+-- Custom 3D Broadcast TV Camera Tower
+function ModelFactory.BuildCameraTower(parent: Instance, pos: Vector3, lookAtPos: Vector3, accentColor: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = "BroadcastCameraTower"
+
+	local cf = CFrame.lookAt(pos + Vector3.new(0, 12, 0), lookAtPos + Vector3.new(0, 2, 0))
+	part({
+		Name = "Pole",
+		Size = Vector3.new(1.4, 12, 1.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 6, 0)),
+		Color = Color3.fromRGB(51, 65, 85),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	part({
+		Name = "CameraBody",
+		Size = Vector3.new(2.2, 2.0, 3.6),
+		CFrame = cf,
+		Color = Color3.fromRGB(15, 23, 42),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	part({
+		Name = "Lens",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.8, 1.4, 1.4),
+		CFrame = cf * CFrame.new(0, 0, -2.2) * CFrame.Angles(0, math.rad(90), 0),
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.Glass,
+		Parent = model,
+	})
+	part({
+		Name = "OnAirLight",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one * 0.7,
+		CFrame = cf * CFrame.new(0, 1.3, 0),
+		Color = accentColor,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	model.Parent = parent
+	return model
+end
+
 return ModelFactory

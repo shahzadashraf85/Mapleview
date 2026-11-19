@@ -211,9 +211,11 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 				and math.abs(hrp.Position.X) <= (Config.Kicks.GKBoxWidth * 0.5)
 			if inBox then
 				lastDiveTime = os.clock()
+				local gkLvl = math.clamp((player:GetAttribute("Stat_Goalkeeping") :: number?) or 1, 1, 5)
+				local diveSpeed = Config.Kicks.DiveSpeed * (1 + (gkLvl - 1) * 0.05)
 				local hum = getHumanoid()
 				local moveDir = if hum and hum.MoveDirection.Magnitude > 0.1 then hum.MoveDirection.Unit else getAimDirection()
-				hrp.AssemblyLinearVelocity = moveDir * Config.Kicks.DiveSpeed + Vector3.new(0, Config.Kicks.DiveUpward, 0)
+				hrp.AssemblyLinearVelocity = moveDir * diveSpeed + Vector3.new(0, Config.Kicks.DiveUpward, 0)
 				Network.GetEvent("GKDiveRequest"):FireServer(moveDir)
 			end
 		end
@@ -244,12 +246,15 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local hum = getHumanoid()
 	local hasBall = (ballOwnerId == player.UserId)
 
+	local paceLvl = math.clamp((player:GetAttribute("Stat_Pace") :: number?) or 1, 1, 5)
+	local paceMult = 1 + (paceLvl - 1) * 0.04
+
 	if hum then
 		if isSprinting and hum.MoveDirection.Magnitude > 0.1 and stamina > 2 then
 			stamina = math.max(0, stamina - Config.Stamina.SprintDrainPerSec * dt)
-			hum.WalkSpeed = if hasBall then Config.Stamina.DribbleSprintSpeed else Config.Stamina.SprintSpeed
+			hum.WalkSpeed = (if hasBall then Config.Stamina.DribbleSprintSpeed else Config.Stamina.SprintSpeed) * paceMult
 		else
-			stamina = math.min(Config.Stamina.Max, stamina + Config.Stamina.RegenPerSec * dt)
+			stamina = math.min(Config.Stamina.Max, stamina + Config.Stamina.RegenPerSec * paceMult * dt)
 			hum.WalkSpeed = if hasBall then Config.Stamina.DribbleWalkSpeed else Config.Stamina.BaseWalkSpeed
 		end
 	end

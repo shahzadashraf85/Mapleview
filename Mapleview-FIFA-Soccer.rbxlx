@@ -468,6 +468,7 @@ local REMOTE_EVENTS = {
 	"GlobalAnnouncement",  -- Server -> Clients: global chat/banner broadcast from admin
 	"DiscoPartyStart",     -- Server -> Clients: 3-minute disco lights + raining tacos FX
 	"OpenHammerPanel",     -- Server -> Client: triggered when ninja373670 activates the Hammer Tool
+	"UpgradeStat",         -- Client -> Server: upgrade Pace / Shooting / Passing / Goalkeeping
 }
 
 local REMOTE_FUNCTIONS = {
@@ -684,19 +685,24 @@ function BallManager.Init(
 			local pwr = math.clamp(powerRatio, 0.1, 1)
 			local curve = math.clamp(curveAmount, -1, 1)
 
+			local shootLvl = math.clamp((player:GetAttribute("Stat_Shooting") :: number?) or 1, 1, 5)
+			local passLvl = math.clamp((player:GetAttribute("Stat_Passing") :: number?) or 1, 1, 5)
+			local shootMult = 1 + (shootLvl - 1) * 0.04
+			local passMult = 1 + (passLvl - 1) * 0.04
+
 			local speed = Config.Kicks.MinPower
 			local loft = 0.18
 			if kickType == "Shoot" or kickType == "FreeKick" then
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxShotPower - Config.Kicks.MinPower) * pwr) * shootMult
 				loft = 0.18 + 0.18 * pwr
 			elseif kickType == "Lob" then
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxLobPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxLobPower - Config.Kicks.MinPower) * pwr) * passMult
 				loft = 0.52 + 0.2 * pwr
 			elseif kickType == "ThroughBall" then
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxThroughBallPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxThroughBallPower - Config.Kicks.MinPower) * pwr) * passMult
 				loft = 0.08
 			else
-				speed = Config.Kicks.MinPower + (Config.Kicks.MaxPassPower - Config.Kicks.MinPower) * pwr
+				speed = (Config.Kicks.MinPower + (Config.Kicks.MaxPassPower - Config.Kicks.MinPower) * pwr) * passMult
 				loft = 0.06
 			end
 
@@ -957,6 +963,12 @@ export type PlayerProfile = {
 	EquippedCelebration: string,
 	UnlockedKits: { [string]: boolean },
 	UnlockedCelebrations: { [string]: boolean },
+	Stats: {
+		Pace: number,
+		Shooting: number,
+		Passing: number,
+		Goalkeeping: number,
+	},
 }
 
 local profiles: { [number]: PlayerProfile } = {}
@@ -980,6 +992,12 @@ local function defaultProfile(player: Player): PlayerProfile
 		EquippedCelebration = "knee_slide",
 		UnlockedKits = { classic_striker = true },
 		UnlockedCelebrations = { knee_slide = true },
+		Stats = {
+			Pace = 1,
+			Shooting = 1,
+			Passing = 1,
+			Goalkeeping = 1,
+		},
 	}
 end
 
@@ -1034,6 +1052,13 @@ end
 local function syncToClient(player: Player)
 	local prof = profiles[player.UserId]
 	if prof then
+		if not prof.Stats then
+			prof.Stats = { Pace = 1, Shooting = 1, Passing = 1, Goalkeeping = 1 }
+		end
+		player:SetAttribute("Stat_Pace", prof.Stats.Pace)
+		player:SetAttribute("Stat_Shooting", prof.Stats.Shooting)
+		player:SetAttribute("Stat_Passing", prof.Stats.Passing)
+		player:SetAttribute("Stat_Goalkeeping", prof.Stats.Goalkeeping)
 		Network.GetEvent("ProfileUpdated"):FireClient(player, prof)
 	end
 end
@@ -1219,6 +1244,26 @@ function DataService.Init(onKitChanged: ((Player) -> ())?)
 		if #trimmed >= 2 then
 			local prof = DataService.GetProfile(player)
 			prof.ClubName = trimmed
+			syncToClient(player)
+		end
+	end)
+
+	Network.GetEvent("UpgradeStat").OnServerEvent:Connect(function(player, statName: string)
+		if statName ~= "Pace" and statName ~= "Shooting" and statName ~= "Passing" and statName ~= "Goalkeeping" then
+			return
+		end
+		local prof = DataService.GetProfile(player)
+		if not prof.Stats then
+			prof.Stats = { Pace = 1, Shooting = 1, Passing = 1, Goalkeeping = 1 }
+		end
+		local curLvl = (prof.Stats :: any)[statName] or 1
+		if curLvl >= 5 then
+			return
+		end
+		local cost = 100 * curLvl
+		if prof.Coins >= cost then
+			prof.Coins -= cost
+			;(prof.Stats :: any)[statName] = curLvl + 1
 			syncToClient(player)
 		end
 	end)
@@ -2933,6 +2978,52 @@ function ModelFactory.BuildConcertStage(parent: Instance, center: Vector3): Fold
 	return concert
 end
 
+-- Custom 3D Broadcast TV Camera Tower
+function ModelFactory.BuildCameraTower(parent: Instance, pos: Vector3, lookAtPos: Vector3, accentColor: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = "BroadcastCameraTower"
+
+	local cf = CFrame.lookAt(pos + Vector3.new(0, 12, 0), lookAtPos + Vector3.new(0, 2, 0))
+	part({
+		Name = "Pole",
+		Size = Vector3.new(1.4, 12, 1.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 6, 0)),
+		Color = Color3.fromRGB(51, 65, 85),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	part({
+		Name = "CameraBody",
+		Size = Vector3.new(2.2, 2.0, 3.6),
+		CFrame = cf,
+		Color = Color3.fromRGB(15, 23, 42),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	part({
+		Name = "Lens",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.8, 1.4, 1.4),
+		CFrame = cf * CFrame.new(0, 0, -2.2) * CFrame.Angles(0, math.rad(90), 0),
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.Glass,
+		Parent = model,
+	})
+	part({
+		Name = "OnAirLight",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.one * 0.7,
+		CFrame = cf * CFrame.new(0, 1.3, 0),
+		Color = accentColor,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	model.Parent = parent
+	return model
+end
+
 return ModelFactory
 ]]></ProtectedString>
       </Properties>
@@ -3559,6 +3650,14 @@ function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThe
 		buildLine(linesFolder, "BoxLeft_" .. endSign, Vector3.new(-boxHalfW, y, goalZ), Vector3.new(-boxHalfW, y, boxZ), lw)
 		buildLine(linesFolder, "BoxRight_" .. endSign, Vector3.new(boxHalfW, y, goalZ), Vector3.new(boxHalfW, y, boxZ), lw)
 
+		-- 6-Yard Goal Box
+		local sixDepth = 14
+		local sixHalfW = modeCfg.GoalWidth * 0.5 + 8
+		local sixZ = goalZ - endSign * sixDepth
+		buildLine(linesFolder, "SixFront_" .. endSign, Vector3.new(-sixHalfW, y, sixZ), Vector3.new(sixHalfW, y, sixZ), lw)
+		buildLine(linesFolder, "SixLeft_" .. endSign, Vector3.new(-sixHalfW, y, goalZ), Vector3.new(-sixHalfW, y, sixZ), lw)
+		buildLine(linesFolder, "SixRight_" .. endSign, Vector3.new(sixHalfW, y, goalZ), Vector3.new(sixHalfW, y, sixZ), lw)
+
 		makePart({
 			Name = "PenaltySpot_" .. endSign,
 			Size = Vector3.new(1.6, 0.08, 1.6),
@@ -3567,6 +3666,10 @@ function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThe
 			CanCollide = false,
 			Parent = linesFolder,
 		})
+
+		-- 3D Broadcast TV Camera Towers behind each goal
+		ModelFactory.BuildCameraTower(stadium, Vector3.new(-boxHalfW, 0, goalZ + endSign * 12), Vector3.new(0, 0, goalZ), themeCfg.Accent)
+		ModelFactory.BuildCameraTower(stadium, Vector3.new(boxHalfW, 0, goalZ + endSign * 12), Vector3.new(0, 0, goalZ), themeCfg.Accent)
 	end
 
 	-- Corner flags
@@ -3973,6 +4076,29 @@ local function renderTab()
 			nil,
 			nil
 		)
+
+		local stats = prof.Stats or { Pace = 1, Shooting = 1, Passing = 1, Goalkeeping = 1 }
+		for _, statInfo in ipairs({
+			{ Key = "Pace", Desc = "Increases Sprint Speed & Stamina Regen" },
+			{ Key = "Shooting", Desc = "Increases Shot Power & Curve Spin" },
+			{ Key = "Passing", Desc = "Increases Through-Ball & Lob Speed" },
+			{ Key = "Goalkeeping", Desc = "Increases Keeper Dive Speed & Reach" },
+		}) do
+			local lvl = (stats :: any)[statInfo.Key] or 1
+			local maxed = (lvl >= 5)
+			local cost = 100 * lvl
+			makeRowCard(
+				string.format("%s  (Lv. %d / 5)", statInfo.Key, lvl),
+				statInfo.Desc,
+				if maxed then "MAXED" else ("Upgrade (" .. cost .. ")"),
+				if maxed then Color3.fromRGB(100, 116, 139) else Color3.fromRGB(22, 163, 74),
+				function()
+					if not maxed then
+						Network.GetEvent("UpgradeStat"):FireServer(statInfo.Key)
+					end
+				end
+			)
+		end
 		makeRowCard("Vote Match Format: 5v5 Fast-Paced", "Shorter pitch, rapid counter-attacks", "Vote 5v5", Color3.fromRGB(22, 163, 74), function()
 			Network.GetEvent("VoteMatchMode"):FireServer("5v5")
 		end)
@@ -4100,6 +4226,34 @@ afkBtn.MouseButton1Click:Connect(function()
 		afkBtn.BackgroundColor3 = Color3.fromRGB(22, 163, 74)
 	end
 	Network.GetEvent("ToggleAFK"):FireServer(isAfk)
+end)
+
+-- 4.55 Day / Night Stadium Lighting Toggle
+local isDayMode = false
+local dayNightBtn = Instance.new("TextButton")
+dayNightBtn.Size = UDim2.fromOffset(118, 38)
+dayNightBtn.Position = UDim2.new(0, 206, 0, 16)
+dayNightBtn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+dayNightBtn.Text = "NIGHT MODE"
+dayNightBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+dayNightBtn.Font = Enum.Font.GothamBold
+dayNightBtn.TextSize = 12
+dayNightBtn.Parent = gui
+makeCorner(dayNightBtn, 10)
+makeStroke(dayNightBtn, Color3.fromRGB(56, 189, 248), 1.2)
+
+dayNightBtn.MouseButton1Click:Connect(function()
+	local Lighting = game:GetService("Lighting")
+	isDayMode = not isDayMode
+	if isDayMode then
+		Lighting.ClockTime = 14.5
+		dayNightBtn.Text = "DAY MODE"
+		dayNightBtn.BackgroundColor3 = Color3.fromRGB(14, 116, 144)
+	else
+		Lighting.ClockTime = 21.0
+		dayNightBtn.Text = "NIGHT MODE"
+		dayNightBtn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	end
 end)
 
 -- 4.6 Global Chat Announcement Banner
@@ -4573,9 +4727,11 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 				and math.abs(hrp.Position.X) <= (Config.Kicks.GKBoxWidth * 0.5)
 			if inBox then
 				lastDiveTime = os.clock()
+				local gkLvl = math.clamp((player:GetAttribute("Stat_Goalkeeping") :: number?) or 1, 1, 5)
+				local diveSpeed = Config.Kicks.DiveSpeed * (1 + (gkLvl - 1) * 0.05)
 				local hum = getHumanoid()
 				local moveDir = if hum and hum.MoveDirection.Magnitude > 0.1 then hum.MoveDirection.Unit else getAimDirection()
-				hrp.AssemblyLinearVelocity = moveDir * Config.Kicks.DiveSpeed + Vector3.new(0, Config.Kicks.DiveUpward, 0)
+				hrp.AssemblyLinearVelocity = moveDir * diveSpeed + Vector3.new(0, Config.Kicks.DiveUpward, 0)
 				Network.GetEvent("GKDiveRequest"):FireServer(moveDir)
 			end
 		end
@@ -4606,12 +4762,15 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local hum = getHumanoid()
 	local hasBall = (ballOwnerId == player.UserId)
 
+	local paceLvl = math.clamp((player:GetAttribute("Stat_Pace") :: number?) or 1, 1, 5)
+	local paceMult = 1 + (paceLvl - 1) * 0.04
+
 	if hum then
 		if isSprinting and hum.MoveDirection.Magnitude > 0.1 and stamina > 2 then
 			stamina = math.max(0, stamina - Config.Stamina.SprintDrainPerSec * dt)
-			hum.WalkSpeed = if hasBall then Config.Stamina.DribbleSprintSpeed else Config.Stamina.SprintSpeed
+			hum.WalkSpeed = (if hasBall then Config.Stamina.DribbleSprintSpeed else Config.Stamina.SprintSpeed) * paceMult
 		else
-			stamina = math.min(Config.Stamina.Max, stamina + Config.Stamina.RegenPerSec * dt)
+			stamina = math.min(Config.Stamina.Max, stamina + Config.Stamina.RegenPerSec * paceMult * dt)
 			hum.WalkSpeed = if hasBall then Config.Stamina.DribbleWalkSpeed else Config.Stamina.BaseWalkSpeed
 		end
 	end
@@ -4688,7 +4847,67 @@ local function attachBallVFX()
 	ballTrail = trail
 end
 
-Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, vel: Vector3, spin: Vector3)
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local function playSFX(soundId: string, volume: number, pitch: number?)
+	local s = Instance.new("Sound")
+	s.SoundId = soundId
+	s.Volume = volume
+	s.PlaybackSpeed = pitch or 1
+	s.Parent = SoundService
+	s:Play()
+	s.Ended:Connect(function()
+		s:Destroy()
+	end)
+	task.delay(6, function()
+		if s.Parent then
+			s:Destroy()
+		end
+	end)
+end
+
+local function cameraShake(intensity: number, duration: number)
+	local cam = Workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		while os.clock() - t0 < duration do
+			local decay = 1 - ((os.clock() - t0) / duration)
+			local ox = (math.random() - 0.5) * intensity * decay
+			local oy = (math.random() - 0.5) * intensity * decay
+			cam.CFrame = cam.CFrame * CFrame.new(ox, oy, 0)
+			task.wait()
+		end
+	end)
+end
+
+local function spawnShockwaveRing(pos: Vector3, color: Color3)
+	local ring = Instance.new("Part")
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Size = Vector3.new(0.25, 3, 3)
+	ring.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	ring.Color = color
+	ring.Material = Enum.Material.Neon
+	ring.Transparency = 0.2
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.Parent = Workspace
+
+	local tween = TweenService:Create(ring, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(0.15, 16, 16),
+		Transparency = 1,
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		ring:Destroy()
+	end)
+end
+
+local lastShotFXTime = 0
+Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(pos: Vector3, vel: Vector3, spin: Vector3)
 	attachBallVFX()
 	if ballTrail then
 		local fast = vel.Magnitude > 52
@@ -4698,6 +4917,14 @@ Network.GetEvent("BallStateUpdate").OnClientEvent:Connect(function(_pos, vel: Ve
 		else
 			ballTrail.Color = ColorSequence.new(Color3.fromRGB(250, 204, 21), Color3.fromRGB(255, 255, 255))
 		end
+	end
+
+	-- Big Power Shot VFX & SFX
+	if vel.Magnitude > 88 and os.clock() - lastShotFXTime > 0.6 then
+		lastShotFXTime = os.clock()
+		spawnShockwaveRing(pos, if spin.Magnitude > 5 then Color3.fromRGB(56, 189, 248) else Color3.fromRGB(250, 204, 21))
+		playSFX("rbxassetid://131961136", 0.55, 0.9)
+		cameraShake(0.35, 0.22)
 	end
 end)
 

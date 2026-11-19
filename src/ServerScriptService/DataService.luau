@@ -26,6 +26,12 @@ export type PlayerProfile = {
 	EquippedCelebration: string,
 	UnlockedKits: { [string]: boolean },
 	UnlockedCelebrations: { [string]: boolean },
+	Stats: {
+		Pace: number,
+		Shooting: number,
+		Passing: number,
+		Goalkeeping: number,
+	},
 }
 
 local profiles: { [number]: PlayerProfile } = {}
@@ -49,6 +55,12 @@ local function defaultProfile(player: Player): PlayerProfile
 		EquippedCelebration = "knee_slide",
 		UnlockedKits = { classic_striker = true },
 		UnlockedCelebrations = { knee_slide = true },
+		Stats = {
+			Pace = 1,
+			Shooting = 1,
+			Passing = 1,
+			Goalkeeping = 1,
+		},
 	}
 end
 
@@ -103,6 +115,13 @@ end
 local function syncToClient(player: Player)
 	local prof = profiles[player.UserId]
 	if prof then
+		if not prof.Stats then
+			prof.Stats = { Pace = 1, Shooting = 1, Passing = 1, Goalkeeping = 1 }
+		end
+		player:SetAttribute("Stat_Pace", prof.Stats.Pace)
+		player:SetAttribute("Stat_Shooting", prof.Stats.Shooting)
+		player:SetAttribute("Stat_Passing", prof.Stats.Passing)
+		player:SetAttribute("Stat_Goalkeeping", prof.Stats.Goalkeeping)
 		Network.GetEvent("ProfileUpdated"):FireClient(player, prof)
 	end
 end
@@ -288,6 +307,26 @@ function DataService.Init(onKitChanged: ((Player) -> ())?)
 		if #trimmed >= 2 then
 			local prof = DataService.GetProfile(player)
 			prof.ClubName = trimmed
+			syncToClient(player)
+		end
+	end)
+
+	Network.GetEvent("UpgradeStat").OnServerEvent:Connect(function(player, statName: string)
+		if statName ~= "Pace" and statName ~= "Shooting" and statName ~= "Passing" and statName ~= "Goalkeeping" then
+			return
+		end
+		local prof = DataService.GetProfile(player)
+		if not prof.Stats then
+			prof.Stats = { Pace = 1, Shooting = 1, Passing = 1, Goalkeeping = 1 }
+		end
+		local curLvl = (prof.Stats :: any)[statName] or 1
+		if curLvl >= 5 then
+			return
+		end
+		local cost = 100 * curLvl
+		if prof.Coins >= cost then
+			prof.Coins -= cost
+			;(prof.Stats :: any)[statName] = curLvl + 1
 			syncToClient(player)
 		end
 	end)
