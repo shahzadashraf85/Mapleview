@@ -11,6 +11,7 @@ local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Network = require(ReplicatedStorage.Shared.Network)
 local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
+local RagdollService = require(script.Parent.RagdollService)
 
 local BallManager = {}
 
@@ -230,35 +231,63 @@ function BallManager.Init(
 		end
 	end)
 
+	Network.GetEvent("RagdollFlop").OnServerEvent:Connect(function(player: Player, dir: Vector3?)
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not char or not hrp then
+			return
+		end
+		if ownerPlayer == player then
+			ownerPlayer = nil
+		end
+		local launchDir = if typeof(dir) == "Vector3" and dir.Magnitude > 0.1 then dir.Unit else hrp.CFrame.LookVector
+		RagdollService.Ragdoll(char, 1.9, launchDir * 48 + Vector3.new(0, 22, 0))
+	end)
+
 	Network.GetEvent("TackleRequest").OnServerEvent:Connect(function(player: Player)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not hrp then
+		if not char or not hrp then
 			return
 		end
-		if (hrp.Position - ballState.Position).Magnitude <= Config.Kicks.TackleRange then
+		local pushDir = Vector3.new(hrp.CFrame.LookVector.X, 0.25, hrp.CFrame.LookVector.Z).Unit
+
+		-- Ragdoll nearby opponents on tackle!
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and other.Character then
+				local oHrp = other.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if oHrp and (oHrp.Position - hrp.Position).Magnitude <= Config.Kicks.TackleRange + 2.5 then
+					RagdollService.Ragdoll(other.Character, 2.2, pushDir * 58 + Vector3.new(0, 26, 0))
+				end
+			end
+		end
+		-- Tackler also flops dramatically into the slide!
+		RagdollService.Ragdoll(char, 1.15, pushDir * 42 + Vector3.new(0, 12, 0))
+
+		if (hrp.Position - ballState.Position).Magnitude <= Config.Kicks.TackleRange + 1.5 then
 			if ownerPlayer and ownerPlayer ~= player then
 				stealCooldowns[ownerPlayer.UserId] = os.clock() + Config.Ball.StealCooldown
 			end
 			ownerPlayer = nil
 			ballFrozen = false
-			local pushDir = Vector3.new(hrp.CFrame.LookVector.X, 0.15, hrp.CFrame.LookVector.Z).Unit
-			ballState.Velocity = pushDir * 42
+			ballState.Velocity = pushDir * 48
 			ballState.Spin = Vector3.zero
 			recordTouch(player)
 			broadcastState()
 		end
 	end)
 
-	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, _diveDir: Vector3)
+	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, diveDir: Vector3)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not hrp then
+		if not char or not hrp then
 			return
 		end
 		local modeCfg = Config.MatchModes[currentMode]
 		if isInPenaltyBox(hrp.Position, modeCfg.PitchLength * 0.5) then
-			divingPlayers[player.UserId] = os.clock() + 0.65
+			divingPlayers[player.UserId] = os.clock() + 0.85
+			local d = if typeof(diveDir) == "Vector3" and diveDir.Magnitude > 0.1 then diveDir.Unit else hrp.CFrame.LookVector
+			RagdollService.Ragdoll(char, 1.35, d * 52 + Vector3.new(0, 18, 0))
 		end
 	end)
 
@@ -275,7 +304,7 @@ function BallManager.Init(
 				local char = ownerPlayer.Character
 				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 				local hum = char and char:FindFirstChildOfClass("Humanoid")
-				if not hrp or not hum or hum.Health <= 0 then
+				if not hrp or not hum or hum.Health <= 0 or (char and RagdollService.IsRagdolled(char)) then
 					ownerPlayer = nil
 				else
 					local targetPos = hrp.Position + hrp.CFrame.LookVector * Config.Ball.DribbleDistance
@@ -297,19 +326,19 @@ function BallManager.Init(
 					end
 				end
 
-				-- Player GK & Dribble pickup checks
+				-- Player GK, Ball-Impact Ragdoll & Dribble pickup checks
 				for _, player in ipairs(Players:GetPlayers()) do
 					local char = player.Character
 					local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 					local hum = char and char:FindFirstChildOfClass("Humanoid")
-					if hrp and hum and hum.Health > 0 then
+					if char and hrp and hum and hum.Health > 0 then
 						local dist = (hrp.Position - ballState.Position).Magnitude
 
-						if divingPlayers[player.UserId] and now < divingPlayers[player.UserId] and dist <= 7.2 then
+						if divingPlayers[player.UserId] and now < divingPlayers[player.UserId] and dist <= 7.8 then
 							if ballState.Velocity.Magnitude > 22 then
 								divingPlayers[player.UserId] = nil
 								local deflectDir = Vector3.new(hrp.CFrame.LookVector.X, 0.25, hrp.CFrame.LookVector.Z).Unit
-								ballState.Velocity = deflectDir * 36
+								ballState.Velocity = deflectDir * 42
 								ballState.Spin = Vector3.zero
 								recordTouch(player)
 								if onSaveCallback then
@@ -319,8 +348,17 @@ function BallManager.Init(
 							end
 						end
 
+						-- High-speed ball impact ragdolls players!
 						local cd = stealCooldowns[player.UserId] or 0
-						if now > cd and dist <= Config.Ball.DribbleSnapRange and ballState.Position.Y <= 4.0 and ballState.Velocity.Magnitude < 55 then
+						if now > cd and dist <= 4.4 and ballState.Velocity.Magnitude >= 56 then
+							stealCooldowns[player.UserId] = now + 0.9
+							RagdollService.Ragdoll(char, 1.8, ballState.Velocity * 0.55 + Vector3.new(0, 22, 0))
+							ballState.Velocity = -ballState.Velocity * 0.45 + Vector3.new(0, 12, 0)
+							recordTouch(player)
+							break
+						end
+
+						if now > cd and not RagdollService.IsRagdolled(char) and dist <= Config.Ball.DribbleSnapRange and ballState.Position.Y <= 4.5 and ballState.Velocity.Magnitude < 56 then
 							ownerPlayer = player
 							recordTouch(player)
 							break

@@ -82,19 +82,19 @@ Config.LobbyCenter = Vector3.new(340, 0, 0)
 Config.ConcertCenter = Vector3.new(-340, 0, 0)
 Config.TurfThickness = 2
 
--- Ball Physics Constants
+-- Ball Physics Constants (Ragdoll Soccer!)
 Config.Ball = {
-	Radius = 1.45,
-	Gravity = 68,
-	AirDrag = 0.22,
-	MagnusCoefficient = 0.042,
-	GrassFriction = 0.985,
-	BounceRestitution = 0.62,
+	Radius = 1.9,
+	Gravity = 64,
+	AirDrag = 0.18,
+	MagnusCoefficient = 0.045,
+	GrassFriction = 0.988,
+	BounceRestitution = 0.78,
 	SpinDecay = 0.992,
-	MaxSpeed = 165,
-	DribbleDistance = 4.2,
-	DribbleSnapRange = 6.5,
-	StealCooldown = 0.65,
+	MaxSpeed = 185,
+	DribbleDistance = 4.6,
+	DribbleSnapRange = 6.8,
+	StealCooldown = 0.75,
 }
 
 -- Kick & Mechanics Constants

@@ -29,6 +29,7 @@ local REMOTE_EVENTS = {
 	"DiscoPartyStart",     -- Server -> Clients: 3-minute disco lights + raining tacos FX
 	"OpenHammerPanel",     -- Server -> Client: triggered when ninja373670 activates the Hammer Tool
 	"UpgradeStat",         -- Client -> Server: upgrade Pace / Shooting / Passing / Goalkeeping
+	"RagdollFlop",         -- Client -> Server: manual ragdoll flop / dive
 }
 
 local REMOTE_FUNCTIONS = {

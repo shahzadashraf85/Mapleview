@@ -221,6 +221,8 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 		end
 	elseif input.KeyCode == Enum.KeyCode.G then
 		Network.GetEvent("CelebrationTrigger"):FireServer()
+	elseif input.KeyCode == Enum.KeyCode.X then
+		Network.GetEvent("RagdollFlop"):FireServer(getAimDirection())
 	end
 end)
 

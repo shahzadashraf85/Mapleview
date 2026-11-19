@@ -143,7 +143,7 @@ local controlsHint = Instance.new("TextLabel")
 controlsHint.Size = UDim2.new(1, -16, 0, 32)
 controlsHint.Position = UDim2.fromOffset(8, 82)
 controlsHint.BackgroundTransparency = 1
-controlsHint.Text = "Click & Hold: Aim & Shoot | F: Through-Ball | RMB: Lob\nA/D: Curve | R: Tackle | Space: GK Dive | G: Celebrate"
+controlsHint.Text = "Click: Aim & Shoot | F: Through-Ball | X: Ragdoll Flop\nA/D: Curve | R: Ragdoll Tackle | Space: GK Dive | G: Cel"
 controlsHint.TextColor3 = Color3.fromRGB(148, 163, 184)
 controlsHint.Font = Enum.Font.Gotham
 controlsHint.TextSize = 10
@@ -643,6 +643,7 @@ if isAdminUser then
 	-- Disco Party + Raining Tacos (3 Min)
 	addHammerBtn("Disco Party + Raining Tacos (3 Min)", Color3.fromRGB(219, 39, 119), "DiscoTacoParty", nil)
 	addHammerBtn("Concert Party: Ronaldo, Messi & Neymar!", Color3.fromRGB(147, 51, 234), "ConcertParty", nil)
+	addHammerBtn("Ragdoll Everyone!", Color3.fromRGB(220, 38, 38), "RagdollAll", nil)
 
 	-- Give Player Coins Section
 	local selectedCoinPlayer: Player? = player

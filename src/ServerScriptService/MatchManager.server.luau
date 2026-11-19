@@ -16,9 +16,11 @@ local DataService = require(script.Parent.DataService)
 local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
 local KitAndCelebrationService = require(script.Parent.KitAndCelebrationService)
 local ModelFactory = require(script.Parent.ModelFactory)
+local RagdollService = require(script.Parent.RagdollService)
 local StadiumBuilder = require(script.Parent.StadiumBuilder)
 
 Network.InitServer()
+RagdollService.Init()
 
 local function getOrCreateTeam(name: string, color: BrickColor): Team
 	local existing = Teams:FindFirstChild(name)
@@ -279,6 +281,12 @@ Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, 
 		broadcastMatchState()
 	elseif cmd == "SkipPhase" then
 		forceSkipPhase = true
+	elseif cmd == "RagdollAll" then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p.Character then
+				RagdollService.Ragdoll(p.Character, 2.5, Vector3.new((math.random() - 0.5) * 60, 45, (math.random() - 0.5) * 60))
+			end
+		end
 	elseif cmd == "GlobalChat" and type(arg) == "string" then
 		local msg = string.sub(arg, 1, 140)
 		if #msg > 0 then

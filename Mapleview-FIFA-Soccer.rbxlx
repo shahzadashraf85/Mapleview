@@ -1,27 +1,27 @@
 <roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
   <External>null</External>
   <External>nil</External>
-  <Item class="Workspace" referent="RBX000015">
+  <Item class="Workspace" referent="RBX000016">
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="FilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="Teams" referent="RBX000016">
+  <Item class="Teams" referent="RBX000017">
     <Properties>
       <string name="Name">Teams</string>
     </Properties>
   </Item>
-  <Item class="Lighting" referent="RBX000017">
+  <Item class="Lighting" referent="RBX000018">
     <Properties>
       <string name="Name">Lighting</string>
     </Properties>
   </Item>
-  <Item class="ReplicatedStorage" referent="RBX000018">
+  <Item class="ReplicatedStorage" referent="RBX000019">
     <Properties>
       <string name="Name">ReplicatedStorage</string>
     </Properties>
-    <Item class="Folder" referent="RBX000019">
+    <Item class="Folder" referent="RBX000020">
       <Properties>
         <string name="Name">Shared</string>
       </Properties>
@@ -359,19 +359,19 @@ Config.LobbyCenter = Vector3.new(340, 0, 0)
 Config.ConcertCenter = Vector3.new(-340, 0, 0)
 Config.TurfThickness = 2
 
--- Ball Physics Constants
+-- Ball Physics Constants (Ragdoll Soccer!)
 Config.Ball = {
-	Radius = 1.45,
-	Gravity = 68,
-	AirDrag = 0.22,
-	MagnusCoefficient = 0.042,
-	GrassFriction = 0.985,
-	BounceRestitution = 0.62,
+	Radius = 1.9,
+	Gravity = 64,
+	AirDrag = 0.18,
+	MagnusCoefficient = 0.045,
+	GrassFriction = 0.988,
+	BounceRestitution = 0.78,
 	SpinDecay = 0.992,
-	MaxSpeed = 165,
-	DribbleDistance = 4.2,
-	DribbleSnapRange = 6.5,
-	StealCooldown = 0.65,
+	MaxSpeed = 185,
+	DribbleDistance = 4.6,
+	DribbleSnapRange = 6.8,
+	StealCooldown = 0.75,
 }
 
 -- Kick & Mechanics Constants
@@ -469,6 +469,7 @@ local REMOTE_EVENTS = {
 	"DiscoPartyStart",     -- Server -> Clients: 3-minute disco lights + raining tacos FX
 	"OpenHammerPanel",     -- Server -> Client: triggered when ninja373670 activates the Hammer Tool
 	"UpgradeStat",         -- Client -> Server: upgrade Pace / Shooting / Passing / Goalkeeping
+	"RagdollFlop",         -- Client -> Server: manual ragdoll flop / dive
 }
 
 local REMOTE_FUNCTIONS = {
@@ -529,7 +530,7 @@ return Network
     </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="RBX000020">
+  <Item class="ServerScriptService" referent="RBX000021">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
@@ -549,6 +550,7 @@ local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Network = require(ReplicatedStorage.Shared.Network)
 local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
+local RagdollService = require(script.Parent.RagdollService)
 
 local BallManager = {}
 
@@ -768,35 +770,63 @@ function BallManager.Init(
 		end
 	end)
 
+	Network.GetEvent("RagdollFlop").OnServerEvent:Connect(function(player: Player, dir: Vector3?)
+		local char = player.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not char or not hrp then
+			return
+		end
+		if ownerPlayer == player then
+			ownerPlayer = nil
+		end
+		local launchDir = if typeof(dir) == "Vector3" and dir.Magnitude > 0.1 then dir.Unit else hrp.CFrame.LookVector
+		RagdollService.Ragdoll(char, 1.9, launchDir * 48 + Vector3.new(0, 22, 0))
+	end)
+
 	Network.GetEvent("TackleRequest").OnServerEvent:Connect(function(player: Player)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not hrp then
+		if not char or not hrp then
 			return
 		end
-		if (hrp.Position - ballState.Position).Magnitude <= Config.Kicks.TackleRange then
+		local pushDir = Vector3.new(hrp.CFrame.LookVector.X, 0.25, hrp.CFrame.LookVector.Z).Unit
+
+		-- Ragdoll nearby opponents on tackle!
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and other.Character then
+				local oHrp = other.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if oHrp and (oHrp.Position - hrp.Position).Magnitude <= Config.Kicks.TackleRange + 2.5 then
+					RagdollService.Ragdoll(other.Character, 2.2, pushDir * 58 + Vector3.new(0, 26, 0))
+				end
+			end
+		end
+		-- Tackler also flops dramatically into the slide!
+		RagdollService.Ragdoll(char, 1.15, pushDir * 42 + Vector3.new(0, 12, 0))
+
+		if (hrp.Position - ballState.Position).Magnitude <= Config.Kicks.TackleRange + 1.5 then
 			if ownerPlayer and ownerPlayer ~= player then
 				stealCooldowns[ownerPlayer.UserId] = os.clock() + Config.Ball.StealCooldown
 			end
 			ownerPlayer = nil
 			ballFrozen = false
-			local pushDir = Vector3.new(hrp.CFrame.LookVector.X, 0.15, hrp.CFrame.LookVector.Z).Unit
-			ballState.Velocity = pushDir * 42
+			ballState.Velocity = pushDir * 48
 			ballState.Spin = Vector3.zero
 			recordTouch(player)
 			broadcastState()
 		end
 	end)
 
-	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, _diveDir: Vector3)
+	Network.GetEvent("GKDiveRequest").OnServerEvent:Connect(function(player: Player, diveDir: Vector3)
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not hrp then
+		if not char or not hrp then
 			return
 		end
 		local modeCfg = Config.MatchModes[currentMode]
 		if isInPenaltyBox(hrp.Position, modeCfg.PitchLength * 0.5) then
-			divingPlayers[player.UserId] = os.clock() + 0.65
+			divingPlayers[player.UserId] = os.clock() + 0.85
+			local d = if typeof(diveDir) == "Vector3" and diveDir.Magnitude > 0.1 then diveDir.Unit else hrp.CFrame.LookVector
+			RagdollService.Ragdoll(char, 1.35, d * 52 + Vector3.new(0, 18, 0))
 		end
 	end)
 
@@ -813,7 +843,7 @@ function BallManager.Init(
 				local char = ownerPlayer.Character
 				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 				local hum = char and char:FindFirstChildOfClass("Humanoid")
-				if not hrp or not hum or hum.Health <= 0 then
+				if not hrp or not hum or hum.Health <= 0 or (char and RagdollService.IsRagdolled(char)) then
 					ownerPlayer = nil
 				else
 					local targetPos = hrp.Position + hrp.CFrame.LookVector * Config.Ball.DribbleDistance
@@ -835,19 +865,19 @@ function BallManager.Init(
 					end
 				end
 
-				-- Player GK & Dribble pickup checks
+				-- Player GK, Ball-Impact Ragdoll & Dribble pickup checks
 				for _, player in ipairs(Players:GetPlayers()) do
 					local char = player.Character
 					local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 					local hum = char and char:FindFirstChildOfClass("Humanoid")
-					if hrp and hum and hum.Health > 0 then
+					if char and hrp and hum and hum.Health > 0 then
 						local dist = (hrp.Position - ballState.Position).Magnitude
 
-						if divingPlayers[player.UserId] and now < divingPlayers[player.UserId] and dist <= 7.2 then
+						if divingPlayers[player.UserId] and now < divingPlayers[player.UserId] and dist <= 7.8 then
 							if ballState.Velocity.Magnitude > 22 then
 								divingPlayers[player.UserId] = nil
 								local deflectDir = Vector3.new(hrp.CFrame.LookVector.X, 0.25, hrp.CFrame.LookVector.Z).Unit
-								ballState.Velocity = deflectDir * 36
+								ballState.Velocity = deflectDir * 42
 								ballState.Spin = Vector3.zero
 								recordTouch(player)
 								if onSaveCallback then
@@ -857,8 +887,17 @@ function BallManager.Init(
 							end
 						end
 
+						-- High-speed ball impact ragdolls players!
 						local cd = stealCooldowns[player.UserId] or 0
-						if now > cd and dist <= Config.Ball.DribbleSnapRange and ballState.Position.Y <= 4.0 and ballState.Velocity.Magnitude < 55 then
+						if now > cd and dist <= 4.4 and ballState.Velocity.Magnitude >= 56 then
+							stealCooldowns[player.UserId] = now + 0.9
+							RagdollService.Ragdoll(char, 1.8, ballState.Velocity * 0.55 + Vector3.new(0, 22, 0))
+							ballState.Velocity = -ballState.Velocity * 0.45 + Vector3.new(0, 12, 0)
+							recordTouch(player)
+							break
+						end
+
+						if now > cd and not RagdollService.IsRagdolled(char) and dist <= Config.Ball.DribbleSnapRange and ballState.Position.Y <= 4.5 and ballState.Velocity.Magnitude < 56 then
 							ownerPlayer = player
 							recordTouch(player)
 							break
@@ -1623,9 +1662,11 @@ local DataService = require(script.Parent.DataService)
 local GoalkeeperAI = require(script.Parent.GoalkeeperAI)
 local KitAndCelebrationService = require(script.Parent.KitAndCelebrationService)
 local ModelFactory = require(script.Parent.ModelFactory)
+local RagdollService = require(script.Parent.RagdollService)
 local StadiumBuilder = require(script.Parent.StadiumBuilder)
 
 Network.InitServer()
+RagdollService.Init()
 
 local function getOrCreateTeam(name: string, color: BrickColor): Team
 	local existing = Teams:FindFirstChild(name)
@@ -1886,6 +1927,12 @@ Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, 
 		broadcastMatchState()
 	elseif cmd == "SkipPhase" then
 		forceSkipPhase = true
+	elseif cmd == "RagdollAll" then
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p.Character then
+				RagdollService.Ragdoll(p.Character, 2.5, Vector3.new((math.random() - 0.5) * 60, 45, (math.random() - 0.5) * 60))
+			end
+		end
 	elseif cmd == "GlobalChat" and type(arg) == "string" then
 		local msg = string.sub(arg, 1, 140)
 		if #msg > 0 then
@@ -3030,6 +3077,130 @@ return ModelFactory
     </Item>
     <Item class="ModuleScript" referent="RBX000011">
       <Properties>
+        <string name="Name">RagdollService</string>
+        <ProtectedString name="Source"><![CDATA[--!strict
+-- RagdollService.luau
+-- Converts R15/R6 Motor6D joints into BallSocketConstraints for hilarious physics ragdolling and restores them cleanly.
+
+local Players = game:GetService("Players")
+
+local RagdollService = {}
+
+local activeRagdolls: { [Model]: number } = {}
+
+local function setMotorsEnabled(character: Model, enabled: boolean)
+	for _, desc in ipairs(character:GetDescendants()) do
+		if desc:IsA("Motor6D") then
+			desc.Enabled = enabled
+		elseif desc:IsA("BallSocketConstraint") and desc.Name == "RagdollSocket" then
+			desc.Enabled = not enabled
+		elseif desc:IsA("NoCollisionConstraint") and desc.Name == "RagdollNoCollide" then
+			desc.Enabled = not enabled
+		end
+	end
+end
+
+local function buildRagdollSockets(character: Model)
+	if character:GetAttribute("RagdollBuilt") then
+		return
+	end
+	character:SetAttribute("RagdollBuilt", true)
+
+	for _, desc in ipairs(character:GetDescendants()) do
+		if desc:IsA("Motor6D") and desc.Part0 and desc.Part1 then
+			local a0 = Instance.new("Attachment")
+			a0.Name = "RagdollAtt0"
+			a0.CFrame = desc.C0
+			a0.Parent = desc.Part0
+
+			local a1 = Instance.new("Attachment")
+			a1.Name = "RagdollAtt1"
+			a1.CFrame = desc.C1
+			a1.Parent = desc.Part1
+
+			local socket = Instance.new("BallSocketConstraint")
+			socket.Name = "RagdollSocket"
+			socket.Attachment0 = a0
+			socket.Attachment1 = a1
+			socket.LimitsEnabled = true
+			socket.TwistLimitsEnabled = true
+			socket.UpperAngle = 65
+			socket.TwistLowerAngle = -45
+			socket.TwistUpperAngle = 45
+			socket.Enabled = false
+			socket.Parent = desc.Part0
+
+			local noCol = Instance.new("NoCollisionConstraint")
+			noCol.Name = "RagdollNoCollide"
+			noCol.Part0 = desc.Part0
+			noCol.Part1 = desc.Part1
+			noCol.Enabled = false
+			noCol.Parent = desc.Part0
+		end
+	end
+end
+
+function RagdollService.IsRagdolled(character: Model): boolean
+	local endT = activeRagdolls[character]
+	return endT ~= nil and os.clock() < endT
+end
+
+function RagdollService.Ragdoll(character: Model, duration: number, impulse: Vector3?)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not humanoid or not hrp or humanoid.Health <= 0 then
+		return
+	end
+
+	buildRagdollSockets(character)
+
+	local wasRagdolled = RagdollService.IsRagdolled(character)
+	activeRagdolls[character] = os.clock() + duration
+
+	if not wasRagdolled then
+		humanoid.PlatformStand = true
+		humanoid.AutoRotate = false
+		setMotorsEnabled(character, false)
+	end
+
+	if impulse and impulse.Magnitude > 0.1 then
+		hrp.AssemblyLinearVelocity = impulse
+		hrp.AssemblyAngularVelocity = Vector3.new(
+			(math.random() - 0.5) * 14,
+			(math.random() - 0.5) * 14,
+			(math.random() - 0.5) * 14
+		)
+	end
+
+	task.delay(duration, function()
+		local endT = activeRagdolls[character]
+		if endT and os.clock() >= endT - 0.05 and character.Parent then
+			activeRagdolls[character] = nil
+			setMotorsEnabled(character, true)
+			if humanoid.Parent and humanoid.Health > 0 then
+				humanoid.PlatformStand = false
+				humanoid.AutoRotate = true
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end
+		end
+	end)
+end
+
+function RagdollService.Init()
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function(char)
+			task.wait(0.25)
+			buildRagdollSockets(char)
+		end)
+	end)
+end
+
+return RagdollService
+]]></ProtectedString>
+      </Properties>
+    </Item>
+    <Item class="ModuleScript" referent="RBX000012">
+      <Properties>
         <string name="Name">StadiumBuilder</string>
         <ProtectedString name="Source"><![CDATA[--!strict
 -- StadiumBuilder.luau
@@ -3718,20 +3889,20 @@ return StadiumBuilder
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterGui" referent="RBX000021">
+  <Item class="StarterGui" referent="RBX000022">
     <Properties>
       <string name="Name">StarterGui</string>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="RBX000022">
+  <Item class="StarterPlayer" referent="RBX000023">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="RBX000023">
+    <Item class="StarterPlayerScripts" referent="RBX000024">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-    <Item class="LocalScript" referent="RBX000012">
+    <Item class="LocalScript" referent="RBX000013">
       <Properties>
         <string name="Name">HUDController</string>
         <ProtectedString name="Source"><![CDATA[--!strict
@@ -3879,7 +4050,7 @@ local controlsHint = Instance.new("TextLabel")
 controlsHint.Size = UDim2.new(1, -16, 0, 32)
 controlsHint.Position = UDim2.fromOffset(8, 82)
 controlsHint.BackgroundTransparency = 1
-controlsHint.Text = "Click & Hold: Aim & Shoot | F: Through-Ball | RMB: Lob\nA/D: Curve | R: Tackle | Space: GK Dive | G: Celebrate"
+controlsHint.Text = "Click: Aim & Shoot | F: Through-Ball | X: Ragdoll Flop\nA/D: Curve | R: Ragdoll Tackle | Space: GK Dive | G: Cel"
 controlsHint.TextColor3 = Color3.fromRGB(148, 163, 184)
 controlsHint.Font = Enum.Font.Gotham
 controlsHint.TextSize = 10
@@ -4379,6 +4550,7 @@ if isAdminUser then
 	-- Disco Party + Raining Tacos (3 Min)
 	addHammerBtn("Disco Party + Raining Tacos (3 Min)", Color3.fromRGB(219, 39, 119), "DiscoTacoParty", nil)
 	addHammerBtn("Concert Party: Ronaldo, Messi & Neymar!", Color3.fromRGB(147, 51, 234), "ConcertParty", nil)
+	addHammerBtn("Ragdoll Everyone!", Color3.fromRGB(220, 38, 38), "RagdollAll", nil)
 
 	-- Give Player Coins Section
 	local selectedCoinPlayer: Player? = player
@@ -4511,7 +4683,7 @@ end)
 ]]></ProtectedString>
       </Properties>
     </Item>
-    <Item class="LocalScript" referent="RBX000013">
+    <Item class="LocalScript" referent="RBX000014">
       <Properties>
         <string name="Name">SoccerController</string>
         <ProtectedString name="Source"><![CDATA[--!strict
@@ -4737,6 +4909,8 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 		end
 	elseif input.KeyCode == Enum.KeyCode.G then
 		Network.GetEvent("CelebrationTrigger"):FireServer()
+	elseif input.KeyCode == Enum.KeyCode.X then
+		Network.GetEvent("RagdollFlop"):FireServer(getAimDirection())
 	end
 end)
 
@@ -4802,7 +4976,7 @@ end)
 ]]></ProtectedString>
       </Properties>
     </Item>
-    <Item class="LocalScript" referent="RBX000014">
+    <Item class="LocalScript" referent="RBX000015">
       <Properties>
         <string name="Name">VFXController</string>
         <ProtectedString name="Source"><![CDATA[--!strict
