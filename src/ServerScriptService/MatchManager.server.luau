@@ -287,6 +287,90 @@ Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, 
 	elseif cmd == "DiscoTacoParty" then
 		startDiscoTacoParty()
 		Network.GetEvent("GlobalAnnouncement"):FireAllClients(player.DisplayName, "DISCO PARTY & RAINING TACOS STARTED FOR 3 MINUTES!")
+	elseif cmd == "ConcertParty" then
+		startDiscoTacoParty()
+		local c = Config.ConcertCenter
+		local stagePos = c + Vector3.new(0, 3.5, -42)
+
+		-- Teleport all players onto the Concert Disco Dance Floor
+		for i, p in ipairs(Players:GetPlayers()) do
+			local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if hrp then
+				local offX = ((i - 1) % 6 - 2.5) * 8
+				local offZ = 10 + math.floor((i - 1) / 6) * 8
+				hrp.CFrame = CFrame.lookAt(c + Vector3.new(offX, 3.5, offZ), stagePos)
+				hrp.AssemblyLinearVelocity = Vector3.zero
+			end
+		end
+
+		-- Spawn 28 colorful & classic soccer balls on the Concert Dance Floor
+		local concert = Workspace:FindFirstChild("Stadium") and Workspace.Stadium:FindFirstChild("ConcertStage")
+		if concert then
+			for i = 1, 28 do
+				local b = Instance.new("Part")
+				b.Name = "ConcertBall_" .. i
+				b.Shape = Enum.PartType.Ball
+				b.Size = Vector3.one * (Config.Ball.Radius * 2)
+				b.Position = c + Vector3.new((math.random() - 0.5) * 90, 14 + math.random(0, 12), (math.random() - 0.5) * 80 + 10)
+				b.Color = Color3.fromHSV((i / 28), 0.7, 1)
+				b.Material = Enum.Material.SmoothPlastic
+				b.CustomPhysicalProperties = PhysicalProperties.new(0.4, 0.3, 0.75, 1, 1)
+				b.Parent = concert
+				task.delay(180, function()
+					if b.Parent then
+						b:Destroy()
+					end
+				end)
+			end
+
+			-- Animated Scene: Ronaldo scores & does the SIUUUUUUUUU!
+			task.spawn(function()
+				local ronaldo = concert:FindFirstChild("RONALDO #7") :: Model?
+				local messi = concert:FindFirstChild("MESSI #10") :: Model?
+				local neymar = concert:FindFirstChild("NEYMAR #10") :: Model?
+				local rBall = concert:FindFirstChild("RonaldoConcertBall") :: BasePart?
+				if not (ronaldo and ronaldo.PrimaryPart and rBall) then
+					return
+				end
+
+				local rStartPivot = ronaldo:GetPivot()
+				local bStartPos = rBall.Position
+				local goalTarget = stagePos + Vector3.new(23, 8.2, -2)
+
+				-- 1. Ronaldo steps up & kicks the ball into the top corner
+				for step = 1, 15 do
+					ronaldo:PivotTo(rStartPivot * CFrame.new(0, 0, -step * 0.25))
+					task.wait(0.03)
+				end
+				for step = 1, 22 do
+					local alpha = step / 22
+					local arcY = math.sin(alpha * math.pi) * 4.5
+					rBall.Position = bStartPos:Lerp(goalTarget, alpha) + Vector3.new(0, arcY, 0)
+					task.wait(0.03)
+				end
+
+				Network.GetEvent("GlobalAnnouncement"):FireAllClients("RONALDO #7", "GOAL!! SIUUUUUUUUUUUUUUU!!")
+
+				-- 2. Ronaldo leaps high, spins 180, and lands in the SIUUUU pose while Messi & Neymar cheer!
+				local leapOrigin = ronaldo:GetPivot()
+				for step = 1, 24 do
+					local alpha = step / 24
+					local jumpY = math.sin(alpha * math.pi) * 8.5
+					local spinAngle = alpha * math.pi
+					ronaldo:PivotTo(leapOrigin * CFrame.new(0, jumpY, 0) * CFrame.Angles(0, spinAngle, 0))
+					if messi then
+						messi:PivotTo(messi:GetPivot() * CFrame.new(0, math.sin(alpha * math.pi * 4) * 0.35, 0))
+					end
+					if neymar then
+						neymar:PivotTo(neymar:GetPivot() * CFrame.new(0, math.sin(alpha * math.pi * 4) * 0.35, 0))
+					end
+					task.wait(0.035)
+				end
+				task.wait(2.5)
+				ronaldo:PivotTo(rStartPivot)
+				rBall.Position = bStartPos
+			end)
+		end
 	elseif cmd == "GiveCoins" and type(arg) == "table" then
 		local targetId = tonumber(arg.TargetUserId)
 		local amount = tonumber(arg.Amount) or 0

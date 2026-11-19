@@ -663,6 +663,9 @@ function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThe
 
 	-- Lobby & Training Pitch
 	buildLobby(stadium, themeCfg.Accent)
+
+	-- Concert Disco Stage (Ronaldo, Messi & Neymar)
+	ModelFactory.BuildConcertStage(stadium, Config.ConcertCenter)
 end
 
 return StadiumBuilder

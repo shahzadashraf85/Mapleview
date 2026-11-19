@@ -79,6 +79,7 @@ Config.TrophyCeremonySeconds = 14
 -- World Positions
 Config.PitchCenter = Vector3.new(0, 0, 0)
 Config.LobbyCenter = Vector3.new(340, 0, 0)
+Config.ConcertCenter = Vector3.new(-340, 0, 0)
 Config.TurfThickness = 2
 
 -- Ball Physics Constants

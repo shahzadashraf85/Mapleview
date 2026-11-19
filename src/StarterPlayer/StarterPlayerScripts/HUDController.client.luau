@@ -591,6 +591,7 @@ if isAdminUser then
 
 	-- Disco Party + Raining Tacos (3 Min)
 	addHammerBtn("Disco Party + Raining Tacos (3 Min)", Color3.fromRGB(219, 39, 119), "DiscoTacoParty", nil)
+	addHammerBtn("Concert Party: Ronaldo, Messi & Neymar!", Color3.fromRGB(147, 51, 234), "ConcertParty", nil)
 
 	-- Give Player Coins Section
 	local selectedCoinPlayer: Player? = player
