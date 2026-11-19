@@ -132,9 +132,32 @@ Network.GetEvent("TrophyCeremonyStart").OnClientEvent:Connect(function()
 	end
 end)
 
--- 3-Minute Disco Party Flashing Lights
+-- 3-Minute Disco Party Flashing Lights + Everyone Dancing
 local discoActive = false
-Network.GetEvent("DiscoPartyStart").OnClientEvent:Connect(function(duration: number)
+Network.GetEvent("DiscoPartyStart").OnClientEvent:Connect(function(duration: number, isConcert: boolean?)
+	local dur = tonumber(duration) or 180
+
+	if isConcert then
+		task.spawn(function()
+			local Players = game:GetService("Players")
+			local lp = Players.LocalPlayer
+			local t0 = os.clock()
+			while os.clock() - t0 < dur do
+				local char = lp.Character
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+				local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if hum and hrp and hum.Health > 0 then
+					-- Low-gravity disco bounce & spin dance!
+					if hum.FloorMaterial ~= Enum.Material.Air then
+						hum.Jump = true
+					end
+					hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(12), 0)
+				end
+				task.wait(0.28)
+			end
+		end)
+	end
+
 	if discoActive then
 		return
 	end
@@ -149,7 +172,6 @@ Network.GetEvent("DiscoPartyStart").OnClientEvent:Connect(function(duration: num
 
 	task.spawn(function()
 		local t0 = os.clock()
-		local dur = tonumber(duration) or 180
 		while os.clock() - t0 < dur do
 			local hue = ((os.clock() - t0) * 0.8) % 1
 			local col = Color3.fromHSV(hue, 0.85, 1)

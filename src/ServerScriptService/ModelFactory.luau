@@ -573,8 +573,10 @@ function ModelFactory.BuildFootballer(
 	lookAtPos: Vector3,
 	jerseyColor: Color3,
 	shortsColor: Color3,
-	labelColor: Color3
+	labelColor: Color3,
+	scale: number?
 ): Model
+	local s = scale or 1
 	local model = Instance.new("Model")
 	model.Name = name
 
@@ -583,8 +585,8 @@ function ModelFactory.BuildFootballer(
 
 	local root = part({
 		Name = "Root",
-		Size = Vector3.new(2.3, 2.7, 1.2),
-		CFrame = cf * CFrame.new(0, 3.3, 0),
+		Size = Vector3.new(2.3 * s, 2.7 * s, 1.2 * s),
+		CFrame = cf * CFrame.new(0, 3.3 * s, 0),
 		Color = jerseyColor,
 		CanCollide = false,
 		Parent = model,
@@ -594,8 +596,8 @@ function ModelFactory.BuildFootballer(
 	part({
 		Name = "Head",
 		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(1.8, 1.8, 1.8),
-		CFrame = cf * CFrame.new(0, 5.4, 0),
+		Size = Vector3.new(1.8 * s, 1.8 * s, 1.8 * s),
+		CFrame = cf * CFrame.new(0, 5.4 * s, 0),
 		Color = skin,
 		CanCollide = false,
 		Parent = model,
@@ -603,16 +605,16 @@ function ModelFactory.BuildFootballer(
 	for _, side in ipairs({ -1, 1 }) do
 		part({
 			Name = "Arm_" .. side,
-			Size = Vector3.new(0.75, 2.3, 0.75),
-			CFrame = cf * CFrame.new(side * 1.65, 3.4, 0) * CFrame.Angles(0, 0, math.rad(side * 14)),
+			Size = Vector3.new(0.75 * s, 2.3 * s, 0.75 * s),
+			CFrame = cf * CFrame.new(side * 1.65 * s, 3.4 * s, 0) * CFrame.Angles(0, 0, math.rad(side * 14)),
 			Color = jerseyColor,
 			CanCollide = false,
 			Parent = model,
 		})
 		part({
 			Name = "Leg_" .. side,
-			Size = Vector3.new(0.9, 2.1, 0.9),
-			CFrame = cf * CFrame.new(side * 0.55, 1.1, 0),
+			Size = Vector3.new(0.9 * s, 2.1 * s, 0.9 * s),
+			CFrame = cf * CFrame.new(side * 0.55 * s, 1.1 * s, 0),
 			Color = shortsColor,
 			CanCollide = false,
 			Parent = model,
@@ -620,8 +622,8 @@ function ModelFactory.BuildFootballer(
 	end
 
 	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromOffset(180, 44)
-	bb.StudsOffset = Vector3.new(0, 3.6, 0)
+	bb.Size = UDim2.fromOffset(220, 52)
+	bb.StudsOffset = Vector3.new(0, 3.8 * s, 0)
 	bb.AlwaysOnTop = true
 	bb.Parent = root
 
@@ -639,23 +641,23 @@ function ModelFactory.BuildFootballer(
 	return model
 end
 
--- Custom 3D Football Concert Disco Stage with Ronaldo, Messi, Neymar & Concert Goal
+-- Custom 3D Massive Football Concert Disco Stage with Giant Ronaldo, Messi, Neymar & Concert Goal
 function ModelFactory.BuildConcertStage(parent: Instance, center: Vector3): Folder
 	local concert = Instance.new("Folder")
 	concert.Name = "ConcertStage"
 	concert.Parent = parent
 
-	-- Main Disco Dance Floor
+	-- Massive 260x260 Disco Dance Floor
 	part({
 		Name = "DiscoFloor",
-		Size = Vector3.new(140, 3, 140),
+		Size = Vector3.new(260, 3, 260),
 		CFrame = CFrame.new(center + Vector3.new(0, -1.5, 0)),
 		Color = Color3.fromRGB(15, 23, 42),
 		Material = Enum.Material.Marble,
 		Parent = concert,
 	})
 
-	-- Colorful Neon Disco Tiles
+	-- Giant Grid of Colorful Neon Disco Tiles
 	local tileColors = {
 		Color3.fromRGB(236, 72, 153),
 		Color3.fromRGB(56, 189, 248),
@@ -663,27 +665,27 @@ function ModelFactory.BuildConcertStage(parent: Instance, center: Vector3): Fold
 		Color3.fromRGB(34, 197, 94),
 		Color3.fromRGB(168, 85, 247),
 	}
-	for gx = -3, 3 do
-		for gz = -2, 3 do
+	for gx = -6, 6 do
+		for gz = -4, 6 do
 			local col = tileColors[((math.abs(gx) + math.abs(gz)) % #tileColors) + 1]
 			part({
 				Name = "DiscoTile_" .. gx .. "_" .. gz,
-				Size = Vector3.new(13, 0.2, 13),
-				CFrame = CFrame.new(center + Vector3.new(gx * 15, 0.1, gz * 15)),
+				Size = Vector3.new(16, 0.25, 16),
+				CFrame = CFrame.new(center + Vector3.new(gx * 18, 0.12, gz * 18)),
 				Color = col,
 				Material = Enum.Material.Neon,
-				Transparency = 0.25,
+				Transparency = 0.22,
 				CanCollide = false,
 				Parent = concert,
 			})
 		end
 	end
 
-	-- Elevated Concert Stage Platform at -Z
-	local stagePos = center + Vector3.new(0, 3.5, -42)
+	-- Giant Elevated Concert Stage Platform at -Z
+	local stagePos = center + Vector3.new(0, 4.5, -78)
 	part({
 		Name = "StageDeck",
-		Size = Vector3.new(72, 7, 28),
+		Size = Vector3.new(124, 9, 44),
 		CFrame = CFrame.new(stagePos),
 		Color = Color3.fromRGB(30, 41, 59),
 		Material = Enum.Material.Metal,
@@ -691,20 +693,20 @@ function ModelFactory.BuildConcertStage(parent: Instance, center: Vector3): Fold
 	})
 	part({
 		Name = "StageNeonRim",
-		Size = Vector3.new(73, 1, 29),
-		CFrame = CFrame.new(stagePos + Vector3.new(0, 3.3, 0)),
+		Size = Vector3.new(126, 1.4, 46),
+		CFrame = CFrame.new(stagePos + Vector3.new(0, 4.2, 0)),
 		Color = Color3.fromRGB(236, 72, 153),
 		Material = Enum.Material.Neon,
 		CanCollide = false,
 		Parent = concert,
 	})
 
-	-- Stage Lighting Truss & Overhead Rig
+	-- Towering Stage Lighting Truss & Overhead Rig
 	for _, side in ipairs({ -1, 1 }) do
 		part({
 			Name = "StagePillar_" .. side,
-			Size = Vector3.new(3, 32, 3),
-			CFrame = CFrame.new(stagePos + Vector3.new(side * 34, 16, -8)),
+			Size = Vector3.new(4, 48, 4),
+			CFrame = CFrame.new(stagePos + Vector3.new(side * 58, 24, -14)),
 			Color = Color3.fromRGB(51, 65, 85),
 			Material = Enum.Material.Metal,
 			Parent = concert,
@@ -712,89 +714,92 @@ function ModelFactory.BuildConcertStage(parent: Instance, center: Vector3): Fold
 	end
 	local rig = part({
 		Name = "StageLightRig",
-		Size = Vector3.new(72, 2.5, 3),
-		CFrame = CFrame.new(stagePos + Vector3.new(0, 32, -8)),
+		Size = Vector3.new(122, 3.5, 4),
+		CFrame = CFrame.new(stagePos + Vector3.new(0, 48, -14)),
 		Color = Color3.fromRGB(56, 189, 248),
 		Material = Enum.Material.Neon,
 		Parent = concert,
 	})
 	local pl = Instance.new("PointLight")
-	pl.Brightness = 4
-	pl.Range = 160
+	pl.Brightness = 5
+	pl.Range = 240
 	pl.Color = Color3.fromRGB(236, 72, 153)
 	pl.Parent = rig
 
-	ModelFactory.BuildJumbotron(concert, CFrame.new(stagePos + Vector3.new(0, 20, -12)) * CFrame.Angles(0, math.rad(180), 0), Color3.fromRGB(236, 72, 153), "RONALDO • MESSI • NEYMAR CONCERT")
+	ModelFactory.BuildJumbotron(concert, CFrame.new(stagePos + Vector3.new(0, 32, -16)) * CFrame.Angles(0, math.rad(180), 0), Color3.fromRGB(236, 72, 153), "RONALDO • MESSI • NEYMAR CONCERT")
 
-	-- Concert Goal on Stage Right for Ronaldo's Scoring + SIUUUU Scene!
-	local goalCenter = stagePos + Vector3.new(22, 3.5, 0)
+	-- Giant Concert Goal on Stage Right for Ronaldo's Scoring + SIUUUU Scene!
+	local goalCenter = stagePos + Vector3.new(40, 4.5, 0)
 	part({
 		Name = "ConcertGoalPostL",
-		Size = Vector3.new(0.6, 7, 0.6),
-		CFrame = CFrame.new(goalCenter + Vector3.new(0, 3.5, -5.5)),
+		Size = Vector3.new(0.9, 12, 0.9),
+		CFrame = CFrame.new(goalCenter + Vector3.new(0, 6, -9)),
 		Color = Color3.new(1, 1, 1),
 		Parent = concert,
 	})
 	part({
 		Name = "ConcertGoalPostR",
-		Size = Vector3.new(0.6, 7, 0.6),
-		CFrame = CFrame.new(goalCenter + Vector3.new(0, 3.5, 5.5)),
+		Size = Vector3.new(0.9, 12, 0.9),
+		CFrame = CFrame.new(goalCenter + Vector3.new(0, 6, 9)),
 		Color = Color3.new(1, 1, 1),
 		Parent = concert,
 	})
 	part({
 		Name = "ConcertGoalBar",
-		Size = Vector3.new(0.6, 0.6, 11.6),
-		CFrame = CFrame.new(goalCenter + Vector3.new(0, 7, 0)),
+		Size = Vector3.new(0.9, 0.9, 19),
+		CFrame = CFrame.new(goalCenter + Vector3.new(0, 12, 0)),
 		Color = Color3.new(1, 1, 1),
 		Parent = concert,
 	})
 	part({
 		Name = "ConcertGoalNet",
-		Size = Vector3.new(0.25, 7, 11),
-		CFrame = CFrame.new(goalCenter + Vector3.new(4, 3.5, 0)),
+		Size = Vector3.new(0.3, 12, 18),
+		CFrame = CFrame.new(goalCenter + Vector3.new(6, 6, 0)),
 		Color = Color3.fromRGB(235, 240, 245),
 		Material = Enum.Material.Fabric,
 		Transparency = 0.5,
 		Parent = concert,
 	})
 
-	-- 3D Football Superstars on Stage: RONALDO #7, MESSI #10, NEYMAR #10
-	local stageTopY = stagePos.Y + 3.5
+	-- Giant 2.6x 3D Football Superstars on Stage: RONALDO #7, MESSI #10, NEYMAR #10
+	local stageTopY = stagePos.Y + 4.5
 	ModelFactory.BuildFootballer(
 		concert,
 		"RONALDO #7",
-		Vector3.new(stagePos.X - 6, stageTopY, stagePos.Z + 2),
+		Vector3.new(stagePos.X - 6, stageTopY, stagePos.Z + 4),
 		Vector3.new(goalCenter.X, stageTopY, goalCenter.Z),
 		Color3.fromRGB(245, 245, 250),
 		Color3.fromRGB(250, 204, 21),
-		Color3.fromRGB(250, 204, 21)
+		Color3.fromRGB(250, 204, 21),
+		2.6
 	)
 	ModelFactory.BuildFootballer(
 		concert,
 		"MESSI #10",
-		Vector3.new(stagePos.X - 18, stageTopY, stagePos.Z - 4),
+		Vector3.new(stagePos.X - 28, stageTopY, stagePos.Z - 6),
 		center,
 		Color3.fromRGB(56, 189, 248),
 		Color3.fromRGB(255, 255, 255),
-		Color3.fromRGB(56, 189, 248)
+		Color3.fromRGB(56, 189, 248),
+		2.6
 	)
 	ModelFactory.BuildFootballer(
 		concert,
 		"NEYMAR #10",
-		Vector3.new(stagePos.X - 28, stageTopY, stagePos.Z + 2),
+		Vector3.new(stagePos.X - 46, stageTopY, stagePos.Z + 4),
 		center,
 		Color3.fromRGB(250, 204, 21),
 		Color3.fromRGB(22, 163, 74),
-		Color3.fromRGB(74, 222, 128)
+		Color3.fromRGB(74, 222, 128),
+		2.6
 	)
 
-	-- Golden Ball for Ronaldo's Concert Shot
+	-- Giant Golden Ball for Ronaldo's Concert Shot
 	local rBall = Instance.new("Part")
 	rBall.Name = "RonaldoConcertBall"
 	rBall.Shape = Enum.PartType.Ball
-	rBall.Size = Vector3.one * 2.8
-	rBall.Position = Vector3.new(stagePos.X - 2, stageTopY + 1.4, stagePos.Z + 2)
+	rBall.Size = Vector3.one * 4.5
+	rBall.Position = Vector3.new(stagePos.X + 4, stageTopY + 2.25, stagePos.Z + 4)
 	rBall.Color = Color3.fromRGB(250, 204, 21)
 	rBall.Material = Enum.Material.Neon
 	rBall.Anchored = true
