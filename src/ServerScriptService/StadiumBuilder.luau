@@ -330,9 +330,21 @@ local function buildStandsRoofAndFans(parent: Instance, halfL: number, halfW: nu
 		})
 	end
 
-	-- 3D Team Dugouts along West Touchline
+	-- 3D Team Dugouts & Player Tunnel along West Touchline
 	ModelFactory.BuildDugout(standsFolder, CFrame.new(-halfW - 14, 0, -28) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Home.PrimaryColor, "HomeDugout")
 	ModelFactory.BuildDugout(standsFolder, CFrame.new(-halfW - 14, 0, 28) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Away.PrimaryColor, "AwayDugout")
+	makePart({
+		Name = "PlayerTunnelArch",
+		Size = Vector3.new(10, 10, 14),
+		CFrame = CFrame.new(-halfW - 16, 5, 0),
+		Color = Color3.fromRGB(20, 26, 38),
+		Material = Enum.Material.Concrete,
+		Parent = standsFolder,
+	})
+
+	-- Giant 3D Jumbotron Scoreboards above North & South Stands
+	ModelFactory.BuildJumbotron(standsFolder, CFrame.new(0, 38, -halfL - margin - 12) * CFrame.Angles(0, math.rad(180), 0), accent, "MAPLEVIEW STADIUM")
+	ModelFactory.BuildJumbotron(standsFolder, CFrame.new(0, 38, halfL + margin + 12), accent, "WORLD CHAMPIONSHIP")
 
 	-- 4 Towering 3D Floodlight Towers
 	local towerCorners = {
@@ -346,30 +358,41 @@ local function buildStandsRoofAndFans(parent: Instance, halfL: number, halfW: nu
 	end
 end
 
--- Cool Lobby + Practice Training Pitch
-local function buildLobby(parent: Instance)
+-- Detailed VIP Stadium Lobby + Training Pitch
+local function buildLobby(parent: Instance, accent: Color3)
 	local lobby = Instance.new("Folder")
 	lobby.Name = "Lobby"
 	lobby.Parent = parent
 
 	local center = Config.LobbyCenter
 
-	-- Main Lobby Plaza Floor
+	-- Main Lobby Plaza Floor + Glowing Neon Rim
 	makePart({
 		Name = "LobbyFloor",
-		Size = Vector3.new(150, 3, 170),
+		Size = Vector3.new(176, 3, 200),
 		CFrame = CFrame.new(center + Vector3.new(0, -1.5, 0)),
-		Color = Color3.fromRGB(15, 23, 42),
+		Color = Color3.fromRGB(18, 26, 44),
 		Material = Enum.Material.Marble,
 		Parent = lobby,
 	})
+	for _, side in ipairs({ -1, 1 }) do
+		makePart({
+			Name = "LobbyNeonWalkway_" .. side,
+			Size = Vector3.new(1.2, 0.25, 190),
+			CFrame = CFrame.new(center + Vector3.new(side * 84, 0.12, 0)),
+			Color = accent,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = lobby,
+		})
+	end
 
 	-- Glowing Neon Entrance Arch
 	for _, side in ipairs({ -1, 1 }) do
 		makePart({
 			Name = "ArchPillar_" .. side,
-			Size = Vector3.new(3, 22, 3),
-			CFrame = CFrame.new(center + Vector3.new(side * 18, 11, -68)),
+			Size = Vector3.new(3.5, 24, 3.5),
+			CFrame = CFrame.new(center + Vector3.new(side * 22, 12, -88)),
 			Color = Color3.fromRGB(30, 41, 59),
 			Material = Enum.Material.Metal,
 			Parent = lobby,
@@ -377,44 +400,81 @@ local function buildLobby(parent: Instance)
 	end
 	local archTop = makePart({
 		Name = "ArchTop",
-		Size = Vector3.new(40, 4, 3.5),
-		CFrame = CFrame.new(center + Vector3.new(0, 22, -68)),
-		Color = Color3.fromRGB(250, 204, 21),
+		Size = Vector3.new(48, 4.5, 4),
+		CFrame = CFrame.new(center + Vector3.new(0, 24, -88)),
+		Color = accent,
 		Material = Enum.Material.Neon,
 		Parent = lobby,
 	})
 	local archLight = Instance.new("PointLight")
-	archLight.Brightness = 3
-	archLight.Range = 120
-	archLight.Color = Color3.fromRGB(250, 204, 21)
+	archLight.Brightness = 3.5
+	archLight.Range = 140
+	archLight.Color = accent
 	archLight.Parent = archTop
 
-	-- Lobby Welcome Sign
 	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromOffset(320, 70)
-	bb.StudsOffset = Vector3.new(0, 5, 0)
+	bb.Size = UDim2.fromOffset(360, 75)
+	bb.StudsOffset = Vector3.new(0, 5.5, 0)
 	bb.AlwaysOnTop = true
 	bb.Parent = archTop
 
 	local signLbl = Instance.new("TextLabel")
 	signLbl.Size = UDim2.fromScale(1, 1)
 	signLbl.BackgroundTransparency = 1
-	signLbl.Text = "MAPLEVIEW STADIUM LOBBY & TRAINING PITCH"
-	signLbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+	signLbl.Text = "MAPLEVIEW VIP STADIUM LOBBY"
+	signLbl.TextColor3 = accent
 	signLbl.TextStrokeTransparency = 0.2
 	signLbl.Font = Enum.Font.GothamBlack
 	signLbl.TextScaled = true
 	signLbl.Parent = bb
 
-	-- 3D Trophy Showcase in Lobby
-	ModelFactory.BuildTrophy(lobby, center + Vector3.new(0, 0, -52), "CHAMPIONSHIP CUP")
+	-- Center 3D Glowing Fountain & Trophy Showcase
+	ModelFactory.BuildFountain(lobby, center + Vector3.new(0, 0, -56), accent)
+	ModelFactory.BuildTrophy(lobby, center + Vector3.new(-30, 0, -68), "CHAMPIONSHIP CUP")
+	ModelFactory.BuildTrophy(lobby, center + Vector3.new(30, 0, -68), "GOLDEN BOOT")
 
-	-- Lobby SpawnLocations (Neutral so everyone spawns in Lobby during intermission)
+	-- 6 Stylized 3D Trees around the Plaza
+	for _, treePos in ipairs({
+		Vector3.new(-68, 0, -76),
+		Vector3.new(68, 0, -76),
+		Vector3.new(-68, 0, -34),
+		Vector3.new(68, 0, -34),
+		Vector3.new(-68, 0, 12),
+		Vector3.new(68, 0, 12),
+	}) do
+		ModelFactory.BuildTree(lobby, center + treePos)
+	end
+
+	-- 4 VIP Lounge Booths (Sofas + Glass Tables)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(-48, 0, -56)) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Home.PrimaryColor)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(48, 0, -56)) * CFrame.Angles(0, math.rad(90), 0), Config.Teams.Away.PrimaryColor)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(-48, 0, -30)) * CFrame.Angles(0, math.rad(-90), 0), accent)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(48, 0, -30)) * CFrame.Angles(0, math.rad(90), 0), accent)
+
+	-- Elevated VIP Viewing Deck overlooking Training Pitch
+	makePart({
+		Name = "VIPDeck",
+		Size = Vector3.new(64, 1.5, 16),
+		CFrame = CFrame.new(center + Vector3.new(0, 7.5, -24)),
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.Glass,
+		Transparency = 0.25,
+		Parent = lobby,
+	})
+	makePart({
+		Name = "VIPStairs",
+		Size = Vector3.new(12, 1.2, 18),
+		CFrame = CFrame.new(center + Vector3.new(-36, 3.8, -24)) * CFrame.Angles(0, 0, math.rad(25)),
+		Color = Color3.fromRGB(51, 65, 85),
+		Parent = lobby,
+	})
+
+	-- Lobby SpawnLocations
 	for i = -1, 1 do
 		local sp = Instance.new("SpawnLocation")
 		sp.Name = "LobbySpawn_" .. i
 		sp.Size = Vector3.new(8, 0.5, 8)
-		sp.CFrame = CFrame.lookAt(center + Vector3.new(i * 12, 0.3, -60), center + Vector3.new(0, 0.3, 0))
+		sp.CFrame = CFrame.lookAt(center + Vector3.new(i * 14, 0.3, -76), center + Vector3.new(0, 0.3, -56))
 		sp.Anchored = true
 		sp.CanCollide = false
 		sp.Transparency = 1
@@ -423,15 +483,15 @@ local function buildLobby(parent: Instance)
 		sp.Parent = lobby
 	end
 
-	-- Practice Training Pitch inside the Lobby
-	local trainCenter = center + Vector3.new(0, 0, 22)
-	local trainL = 96
-	local trainW = 76
-	for i = 1, 6 do
-		local z = trainCenter.Z - trainL * 0.5 + (i - 0.5) * (trainL / 6)
+	-- Detailed Practice Training Pitch inside the Lobby
+	local trainCenter = center + Vector3.new(0, 0, 34)
+	local trainL = 104
+	local trainW = 84
+	for i = 1, 8 do
+		local z = trainCenter.Z - trainL * 0.5 + (i - 0.5) * (trainL / 8)
 		makePart({
 			Name = "TrainTurf_" .. i,
-			Size = Vector3.new(trainW, 0.4, trainL / 6),
+			Size = Vector3.new(trainW, 0.4, trainL / 8),
 			CFrame = CFrame.new(trainCenter.X, 0.1, z),
 			Color = if i % 2 == 0 then Color3.fromRGB(34, 139, 64) else Color3.fromRGB(40, 156, 72),
 			Material = Enum.Material.Grass,
@@ -439,30 +499,32 @@ local function buildLobby(parent: Instance)
 		})
 	end
 
-	-- Training Pitch Lines
 	local ty = 0.32
 	buildLine(lobby, "TrainLineL", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
 	buildLine(lobby, "TrainLineR", Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
+	buildLine(lobby, "TrainStartLine", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), 0.5)
 	buildLine(lobby, "TrainGoalLine", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
+	buildLine(lobby, "TrainBoxF", Vector3.new(trainCenter.X - 24, ty, trainCenter.Z + trainL * 0.5 - 24), Vector3.new(trainCenter.X + 24, ty, trainCenter.Z + trainL * 0.5 - 24), 0.5)
+	buildLine(lobby, "TrainBoxL", Vector3.new(trainCenter.X - 24, ty, trainCenter.Z + trainL * 0.5), Vector3.new(trainCenter.X - 24, ty, trainCenter.Z + trainL * 0.5 - 24), 0.5)
+	buildLine(lobby, "TrainBoxR", Vector3.new(trainCenter.X + 24, ty, trainCenter.Z + trainL * 0.5), Vector3.new(trainCenter.X + 24, ty, trainCenter.Z + trainL * 0.5 - 24), 0.5)
 
-	-- Training Goal at +Z end of Training Pitch
 	buildGoal(lobby, "TrainingGoal", Vector3.new(trainCenter.X, 0.3, trainCenter.Z + trainL * 0.5), 1, 24, 9.5)
+	ModelFactory.BuildJumbotron(lobby, CFrame.new(trainCenter + Vector3.new(0, 22, trainL * 0.5 + 10)), accent, "TRAINING PITCH")
 
-	-- Glowing Target Rings inside Training Goal
 	for _, xOff in ipairs({ -7.5, 0, 7.5 }) do
 		makePart({
 			Name = "TargetRing_" .. xOff,
 			Shape = Enum.PartType.Cylinder,
 			Size = Vector3.new(0.4, 3.6, 3.6),
 			CFrame = CFrame.new(trainCenter.X + xOff, 6.2, trainCenter.Z + trainL * 0.5 + 1) * CFrame.Angles(0, math.rad(90), 0),
-			Color = Color3.fromRGB(250, 204, 21),
+			Color = accent,
 			Material = Enum.Material.Neon,
 			CanCollide = false,
 			Parent = lobby,
 		})
 	end
 
-	-- 3 Practice Soccer Balls (unanchored physical balls players can dribble & shoot in the lobby!)
+	-- 3 Practice Soccer Balls
 	for i = -1, 1 do
 		local pBall = Instance.new("Part")
 		pBall.Name = "TrainingBall_" .. (i + 2)
@@ -600,7 +662,7 @@ function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThe
 	buildStandsRoofAndFans(stadium, halfL, halfW, themeCfg)
 
 	-- Lobby & Training Pitch
-	buildLobby(stadium)
+	buildLobby(stadium, themeCfg.Accent)
 end
 
 return StadiumBuilder

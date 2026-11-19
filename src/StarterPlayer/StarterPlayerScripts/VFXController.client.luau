@@ -131,3 +131,34 @@ Network.GetEvent("TrophyCeremonyStart").OnClientEvent:Connect(function()
 		end)
 	end
 end)
+
+-- 3-Minute Disco Party Flashing Lights
+local discoActive = false
+Network.GetEvent("DiscoPartyStart").OnClientEvent:Connect(function(duration: number)
+	if discoActive then
+		return
+	end
+	discoActive = true
+
+	local Lighting = game:GetService("Lighting")
+	local origAmbient = Lighting.Ambient
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.Name = "DiscoTint"
+	cc.Saturation = 0.35
+	cc.Parent = Lighting
+
+	task.spawn(function()
+		local t0 = os.clock()
+		local dur = tonumber(duration) or 180
+		while os.clock() - t0 < dur do
+			local hue = ((os.clock() - t0) * 0.8) % 1
+			local col = Color3.fromHSV(hue, 0.85, 1)
+			cc.TintColor = col
+			Lighting.Ambient = col
+			task.wait(0.18)
+		end
+		cc:Destroy()
+		Lighting.Ambient = origAmbient
+		discoActive = false
+	end)
+end)

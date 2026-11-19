@@ -9,7 +9,7 @@ local Network = {}
 
 local REMOTE_EVENTS = {
 	"BallStateUpdate",     -- Server -> Clients: authoritative ball pos/vel/spin/owner
-	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick (with targetPos!)
+	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick (with targetPos)
 	"DribbleToggle",       -- Client -> Server: Request close control or release
 	"TackleRequest",       -- Client -> Server: Slide tackle / steal attempt
 	"GKDiveRequest",       -- Client -> Server: Goalkeeper dive direction
@@ -22,8 +22,12 @@ local REMOTE_EVENTS = {
 	"PurchaseItem",        -- Client -> Server: buy kit / celebration
 	"UpdateClubName",      -- Client -> Server: set custom club name
 	"ProfileUpdated",      -- Server -> Client: sync player profile & coins/ELO
-	"AdminCommand",        -- Client -> Server: ninja373670 admin actions (FreeKick, Penalty, Stadium, etc.)
+	"AdminCommand",        -- Client -> Server: ninja373670 admin actions
 	"TrainingBallKick",    -- Client -> Server: kick a practice ball on the lobby training pitch
+	"ToggleAFK",           -- Client -> Server: toggle AFK (stay in lobby vs join match)
+	"GlobalAnnouncement",  -- Server -> Clients: global chat/banner broadcast from admin
+	"DiscoPartyStart",     -- Server -> Clients: 3-minute disco lights + raining tacos FX
+	"OpenHammerPanel",     -- Server -> Client: triggered when ninja373670 activates the Hammer Tool
 }
 
 local REMOTE_FUNCTIONS = {

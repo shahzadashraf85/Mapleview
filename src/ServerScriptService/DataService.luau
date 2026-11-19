@@ -132,6 +132,12 @@ function DataService.AwardSave(player: Player)
 	syncToClient(player)
 end
 
+function DataService.GiveCoins(player: Player, amount: number)
+	local prof = DataService.GetProfile(player)
+	prof.Coins = math.max(0, prof.Coins + math.floor(amount))
+	syncToClient(player)
+end
+
 function DataService.RecordMatchResult(player: Player, won: boolean)
 	local prof = DataService.GetProfile(player)
 	prof.Matches += 1

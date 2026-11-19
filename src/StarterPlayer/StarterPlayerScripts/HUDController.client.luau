@@ -443,54 +443,138 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 end)
 
--- 5. ADMIN PANEL (Strictly for ninja373670)
+-- 4.5 AFK / Join Match Toggle Button (top-left)
+local isAfk = false
+local afkBtn = Instance.new("TextButton")
+afkBtn.Size = UDim2.fromOffset(180, 38)
+afkBtn.Position = UDim2.new(0, 18, 0, 16)
+afkBtn.BackgroundColor3 = Color3.fromRGB(22, 163, 74)
+afkBtn.Text = "IN MATCH (Click for AFK)"
+afkBtn.TextColor3 = Color3.new(1, 1, 1)
+afkBtn.Font = Enum.Font.GothamBold
+afkBtn.TextSize = 12
+afkBtn.Parent = gui
+makeCorner(afkBtn, 10)
+makeStroke(afkBtn, Color3.fromRGB(255, 255, 255), 1.2)
+
+afkBtn.MouseButton1Click:Connect(function()
+	isAfk = not isAfk
+	if isAfk then
+		afkBtn.Text = "AFK IN LOBBY (Click to Join)"
+		afkBtn.BackgroundColor3 = Color3.fromRGB(217, 119, 6)
+	else
+		afkBtn.Text = "IN MATCH (Click for AFK)"
+		afkBtn.BackgroundColor3 = Color3.fromRGB(22, 163, 74)
+	end
+	Network.GetEvent("ToggleAFK"):FireServer(isAfk)
+end)
+
+-- 4.6 Global Chat Announcement Banner
+local globalBanner = Instance.new("Frame")
+globalBanner.Size = UDim2.fromOffset(620, 64)
+globalBanner.Position = UDim2.new(0.5, -310, 0, 92)
+globalBanner.BackgroundColor3 = Color3.fromRGB(88, 28, 135)
+globalBanner.BackgroundTransparency = 0.08
+globalBanner.Visible = false
+globalBanner.Parent = gui
+makeCorner(globalBanner, 12)
+makeStroke(globalBanner, Color3.fromRGB(250, 204, 21), 2)
+
+local globalLbl = Instance.new("TextLabel")
+globalLbl.Size = UDim2.new(1, -24, 1, -10)
+globalLbl.Position = UDim2.fromOffset(12, 5)
+globalLbl.BackgroundTransparency = 1
+globalLbl.Text = ""
+globalLbl.TextColor3 = Color3.new(1, 1, 1)
+globalLbl.Font = Enum.Font.GothamBlack
+globalLbl.TextSize = 16
+globalLbl.TextWrapped = true
+globalLbl.Parent = globalBanner
+
+Network.GetEvent("GlobalAnnouncement").OnClientEvent:Connect(function(sender: string, msg: string)
+	globalLbl.Text = string.format("[GLOBAL - %s]: %s", tostring(sender), tostring(msg))
+	globalBanner.Visible = true
+	task.delay(6, function()
+		globalBanner.Visible = false
+	end)
+end)
+
+-- 5. HAMMER PANEL (Strictly for ninja373670 — labeled "Hammer", NOT "Admin Panel")
 if isAdminUser then
-	local adminBtn = Instance.new("TextButton")
-	adminBtn.Size = UDim2.fromOffset(140, 38)
-	adminBtn.Position = UDim2.new(1, -340, 0, 16)
-	adminBtn.BackgroundColor3 = Color3.fromRGB(127, 29, 29)
-	adminBtn.Text = "ADMIN [P]"
-	adminBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
-	adminBtn.Font = Enum.Font.GothamBlack
-	adminBtn.TextSize = 13
-	adminBtn.Parent = gui
-	makeCorner(adminBtn, 10)
-	makeStroke(adminBtn, Color3.fromRGB(239, 68, 68), 1.5)
+	local hammerBtn = Instance.new("TextButton")
+	hammerBtn.Size = UDim2.fromOffset(120, 38)
+	hammerBtn.Position = UDim2.new(1, -320, 0, 16)
+	hammerBtn.BackgroundColor3 = Color3.fromRGB(127, 29, 29)
+	hammerBtn.Text = "HAMMER"
+	hammerBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+	hammerBtn.Font = Enum.Font.GothamBlack
+	hammerBtn.TextSize = 13
+	hammerBtn.Parent = gui
+	makeCorner(hammerBtn, 10)
+	makeStroke(hammerBtn, Color3.fromRGB(250, 204, 21), 1.5)
 
-	local adminPanel = Instance.new("Frame")
-	adminPanel.Size = UDim2.fromOffset(310, 430)
-	adminPanel.Position = UDim2.new(0, 18, 0.5, -215)
-	adminPanel.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
-	adminPanel.BackgroundTransparency = 0.05
-	adminPanel.Visible = false
-	adminPanel.Parent = gui
-	makeCorner(adminPanel, 14)
-	makeStroke(adminPanel, Color3.fromRGB(239, 68, 68), 2)
+	local hammerPanel = Instance.new("Frame")
+	hammerPanel.Size = UDim2.fromOffset(340, 470)
+	hammerPanel.Position = UDim2.new(0, 18, 0.5, -235)
+	hammerPanel.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+	hammerPanel.BackgroundTransparency = 0.04
+	hammerPanel.Visible = false
+	hammerPanel.Parent = gui
+	makeCorner(hammerPanel, 14)
+	makeStroke(hammerPanel, Color3.fromRGB(250, 204, 21), 2)
 
-	local aTitle = Instance.new("TextLabel")
-	aTitle.Size = UDim2.new(1, -20, 0, 36)
-	aTitle.Position = UDim2.fromOffset(10, 6)
-	aTitle.BackgroundTransparency = 1
-	aTitle.Text = "ADMIN PANEL (ninja373670)"
-	aTitle.TextColor3 = Color3.fromRGB(250, 204, 21)
-	aTitle.Font = Enum.Font.GothamBlack
-	aTitle.TextSize = 15
-	aTitle.Parent = adminPanel
+	local hTitle = Instance.new("TextLabel")
+	hTitle.Size = UDim2.new(1, -20, 0, 36)
+	hTitle.Position = UDim2.fromOffset(10, 6)
+	hTitle.BackgroundTransparency = 1
+	hTitle.Text = "HAMMER CONTROLS (ninja373670)"
+	hTitle.TextColor3 = Color3.fromRGB(250, 204, 21)
+	hTitle.Font = Enum.Font.GothamBlack
+	hTitle.TextSize = 15
+	hTitle.Parent = hammerPanel
 
-	local aScroll = Instance.new("ScrollingFrame")
-	aScroll.Size = UDim2.new(1, -20, 1, -52)
-	aScroll.Position = UDim2.fromOffset(10, 44)
-	aScroll.BackgroundTransparency = 1
-	aScroll.ScrollBarThickness = 5
-	aScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	aScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-	aScroll.Parent = adminPanel
+	local hScroll = Instance.new("ScrollingFrame")
+	hScroll.Size = UDim2.new(1, -20, 1, -52)
+	hScroll.Position = UDim2.fromOffset(10, 44)
+	hScroll.BackgroundTransparency = 1
+	hScroll.ScrollBarThickness = 5
+	hScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	hScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	hScroll.Parent = hammerPanel
 
-	local aList = Instance.new("UIListLayout")
-	aList.Padding = UDim.new(0, 6)
-	aList.Parent = aScroll
+	local hList = Instance.new("UIListLayout")
+	hList.Padding = UDim.new(0, 6)
+	hList.Parent = hScroll
 
-	local function addAdminBtn(label: string, color: Color3, cmd: string, arg: any)
+	-- Global Chat Box
+	local globalBox = Instance.new("TextBox")
+	globalBox.Size = UDim2.new(1, -6, 0, 34)
+	globalBox.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	globalBox.PlaceholderText = "Type Global Chat message..."
+	globalBox.Text = ""
+	globalBox.TextColor3 = Color3.new(1, 1, 1)
+	globalBox.Font = Enum.Font.GothamSemibold
+	globalBox.TextSize = 13
+	globalBox.Parent = hScroll
+	makeCorner(globalBox, 8)
+
+	local sendGlobalBtn = Instance.new("TextButton")
+	sendGlobalBtn.Size = UDim2.new(1, -6, 0, 34)
+	sendGlobalBtn.BackgroundColor3 = Color3.fromRGB(147, 51, 234)
+	sendGlobalBtn.Text = "Send Global Chat"
+	sendGlobalBtn.TextColor3 = Color3.new(1, 1, 1)
+	sendGlobalBtn.Font = Enum.Font.GothamBold
+	sendGlobalBtn.TextSize = 13
+	sendGlobalBtn.Parent = hScroll
+	makeCorner(sendGlobalBtn, 8)
+	sendGlobalBtn.MouseButton1Click:Connect(function()
+		if #globalBox.Text > 0 then
+			Network.GetEvent("AdminCommand"):FireServer("GlobalChat", globalBox.Text)
+			globalBox.Text = ""
+		end
+	end)
+
+	local function addHammerBtn(label: string, color: Color3, cmd: string, arg: any)
 		local b = Instance.new("TextButton")
 		b.Size = UDim2.new(1, -6, 0, 34)
 		b.BackgroundColor3 = color
@@ -498,34 +582,87 @@ if isAdminUser then
 		b.TextColor3 = Color3.new(1, 1, 1)
 		b.Font = Enum.Font.GothamBold
 		b.TextSize = 13
-		b.Parent = aScroll
+		b.Parent = hScroll
 		makeCorner(b, 8)
 		b.MouseButton1Click:Connect(function()
 			Network.GetEvent("AdminCommand"):FireServer(cmd, arg)
 		end)
 	end
 
-	addAdminBtn("Give Free Kick (Where I Stand)", Color3.fromRGB(217, 119, 6), "FreeKick", nil)
-	addAdminBtn("Give Penalty (Home FC)", Color3.fromRGB(37, 99, 235), "PenaltyHome", nil)
-	addAdminBtn("Give Penalty (Away United)", Color3.fromRGB(220, 38, 38), "PenaltyAway", nil)
-	addAdminBtn("Reset Ball to Center", Color3.fromRGB(51, 65, 85), "ResetBall", nil)
-	addAdminBtn("Skip / Next Match Phase", Color3.fromRGB(22, 163, 74), "SkipPhase", nil)
-	addAdminBtn("+1 Goal Home", Color3.fromRGB(30, 64, 175), "AddGoalHome", nil)
-	addAdminBtn("+1 Goal Away", Color3.fromRGB(153, 27, 27), "AddGoalAway", nil)
-	addAdminBtn("Mode: 5v5 Fast-Paced", Color3.fromRGB(71, 85, 105), "SetMode", "5v5")
-	addAdminBtn("Mode: 11v11 Competitive", Color3.fromRGB(71, 85, 105), "SetMode", "11v11")
-	addAdminBtn("Stadium: Wembley Night", Color3.fromRGB(30, 41, 59), "SetStadium", "WembleyNight")
-	addAdminBtn("Stadium: Golden Sunset", Color3.fromRGB(154, 52, 18), "SetStadium", "SunsetArena")
-	addAdminBtn("Stadium: Alpine Snow", Color3.fromRGB(14, 116, 144), "SetStadium", "AlpineSnow")
-	addAdminBtn("Stadium: Neon Cyber Dome", Color3.fromRGB(88, 28, 135), "SetStadium", "NeonCyber")
+	-- Disco Party + Raining Tacos (3 Min)
+	addHammerBtn("Disco Party + Raining Tacos (3 Min)", Color3.fromRGB(219, 39, 119), "DiscoTacoParty", nil)
 
-	local function toggleAdmin()
-		adminPanel.Visible = not adminPanel.Visible
+	-- Give Player Coins Section
+	local selectedCoinPlayer: Player? = player
+	local coinTargetBtn = Instance.new("TextButton")
+	coinTargetBtn.Size = UDim2.new(1, -6, 0, 32)
+	coinTargetBtn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	coinTargetBtn.Text = "Coin Target: " .. player.DisplayName .. " (Click to Cycle)"
+	coinTargetBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+	coinTargetBtn.Font = Enum.Font.GothamBold
+	coinTargetBtn.TextSize = 12
+	coinTargetBtn.Parent = hScroll
+	makeCorner(coinTargetBtn, 8)
+	coinTargetBtn.MouseButton1Click:Connect(function()
+		local all = Players:GetPlayers()
+		local idx = table.find(all, selectedCoinPlayer) or 0
+		selectedCoinPlayer = all[(idx % #all) + 1]
+		if selectedCoinPlayer then
+			coinTargetBtn.Text = "Coin Target: " .. selectedCoinPlayer.DisplayName .. " (Click to Cycle)"
+		end
+	end)
+
+	local coinRow = Instance.new("Frame")
+	coinRow.Size = UDim2.new(1, -6, 0, 34)
+	coinRow.BackgroundTransparency = 1
+	coinRow.Parent = hScroll
+	local coinRowLayout = Instance.new("UIListLayout")
+	coinRowLayout.FillDirection = Enum.FillDirection.Horizontal
+	coinRowLayout.Padding = UDim.new(0, 6)
+	coinRowLayout.Parent = coinRow
+
+	for _, amt in ipairs({ 100, 500, 1000 }) do
+		local cb = Instance.new("TextButton")
+		cb.Size = UDim2.new(0.32, 0, 1, 0)
+		cb.BackgroundColor3 = Color3.fromRGB(217, 119, 6)
+		cb.Text = "+" .. amt .. " Coins"
+		cb.TextColor3 = Color3.new(1, 1, 1)
+		cb.Font = Enum.Font.GothamBold
+		cb.TextSize = 12
+		cb.Parent = coinRow
+		makeCorner(cb, 8)
+		cb.MouseButton1Click:Connect(function()
+			if selectedCoinPlayer then
+				Network.GetEvent("AdminCommand"):FireServer("GiveCoins", {
+					TargetUserId = selectedCoinPlayer.UserId,
+					Amount = amt,
+				})
+			end
+		end)
 	end
-	adminBtn.MouseButton1Click:Connect(toggleAdmin)
+
+	addHammerBtn("Give Free Kick (Where I Stand)", Color3.fromRGB(217, 119, 6), "FreeKick", nil)
+	addHammerBtn("Give Penalty (Home FC)", Color3.fromRGB(37, 99, 235), "PenaltyHome", nil)
+	addHammerBtn("Give Penalty (Away United)", Color3.fromRGB(220, 38, 38), "PenaltyAway", nil)
+	addHammerBtn("Reset Ball to Center", Color3.fromRGB(51, 65, 85), "ResetBall", nil)
+	addHammerBtn("Skip / Next Match Phase", Color3.fromRGB(22, 163, 74), "SkipPhase", nil)
+	addHammerBtn("+1 Goal Home", Color3.fromRGB(30, 64, 175), "AddGoalHome", nil)
+	addHammerBtn("+1 Goal Away", Color3.fromRGB(153, 27, 27), "AddGoalAway", nil)
+	addHammerBtn("Mode: 5v5 Fast-Paced", Color3.fromRGB(71, 85, 105), "SetMode", "5v5")
+	addHammerBtn("Mode: 11v11 Competitive", Color3.fromRGB(71, 85, 105), "SetMode", "11v11")
+	addHammerBtn("Stadium: Wembley Night", Color3.fromRGB(30, 41, 59), "SetStadium", "WembleyNight")
+	addHammerBtn("Stadium: Golden Sunset", Color3.fromRGB(154, 52, 18), "SetStadium", "SunsetArena")
+	addHammerBtn("Stadium: Alpine Snow", Color3.fromRGB(14, 116, 144), "SetStadium", "AlpineSnow")
+	addHammerBtn("Stadium: Neon Cyber Dome", Color3.fromRGB(88, 28, 135), "SetStadium", "NeonCyber")
+
+	local function toggleHammer()
+		hammerPanel.Visible = not hammerPanel.Visible
+	end
+	hammerBtn.MouseButton1Click:Connect(toggleHammer)
+	Network.GetEvent("OpenHammerPanel").OnClientEvent:Connect(toggleHammer)
 	UserInputService.InputBegan:Connect(function(input, gp)
 		if not gp and input.KeyCode == Enum.KeyCode.P then
-			toggleAdmin()
+			toggleHammer()
 		end
 	end)
 end

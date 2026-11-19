@@ -312,4 +312,257 @@ function ModelFactory.BuildGoalkeeper(parent: Instance, name: string, pos: Vecto
 	return model
 end
 
+-- Custom 3D Stadium Jumbotron Scoreboard
+function ModelFactory.BuildJumbotron(parent: Instance, cf: CFrame, accentColor: Color3, titleText: string): Model
+	local model = Instance.new("Model")
+	model.Name = "StadiumJumbotron"
+
+	part({
+		Name = "Frame",
+		Size = Vector3.new(44, 18, 2.5),
+		CFrame = cf,
+		Color = Color3.fromRGB(15, 23, 42),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	local screen = part({
+		Name = "Screen",
+		Size = Vector3.new(41, 15, 0.5),
+		CFrame = cf * CFrame.new(0, 0, -1.3),
+		Color = Color3.fromRGB(20, 30, 50),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+	part({
+		Name = "TopTrim",
+		Size = Vector3.new(45, 1.2, 3),
+		CFrame = cf * CFrame.new(0, 9.4, 0),
+		Color = accentColor,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = Enum.NormalId.Front
+	sg.Parent = screen
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = titleText
+	lbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.Parent = sg
+
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Glowing Lobby Fountain
+function ModelFactory.BuildFountain(parent: Instance, pos: Vector3, accentColor: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = "LobbyFountain"
+
+	part({
+		Name = "PoolRim",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.8, 18, 18),
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.9, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.Marble,
+		Parent = model,
+	})
+	local water = part({
+		Name = "Water",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.4, 16, 16),
+		CFrame = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(56, 189, 248),
+		Material = Enum.Material.Glass,
+		Transparency = 0.25,
+		CanCollide = false,
+		Parent = model,
+	})
+	part({
+		Name = "CenterPillar",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(5, 3, 3),
+		CFrame = CFrame.new(pos + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = accentColor,
+		Material = Enum.Material.Neon,
+		Parent = model,
+	})
+
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(Color3.fromRGB(186, 230, 253), Color3.fromRGB(255, 255, 255))
+	pe.Size = NumberSequence.new(0.45)
+	pe.Speed = NumberRange.new(12, 18)
+	pe.SpreadAngle = Vector2.new(35, 35)
+	pe.Acceleration = Vector3.new(0, -28, 0)
+	pe.Lifetime = NumberRange.new(0.9, 1.3)
+	pe.Rate = 35
+	pe.Parent = water
+
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Stylized Lobby Tree
+function ModelFactory.BuildTree(parent: Instance, pos: Vector3): Model
+	local model = Instance.new("Model")
+	model.Name = "LobbyTree"
+
+	part({
+		Name = "Planter",
+		Size = Vector3.new(5, 1.6, 5),
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.8, 0)),
+		Color = Color3.fromRGB(51, 65, 85),
+		Material = Enum.Material.Marble,
+		Parent = model,
+	})
+	part({
+		Name = "Trunk",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(8, 1.4, 1.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(120, 72, 42),
+		Material = Enum.Material.Wood,
+		Parent = model,
+	})
+	part({
+		Name = "Canopy1",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(7, 5.5, 7),
+		CFrame = CFrame.new(pos + Vector3.new(0, 10, 0)),
+		Color = Color3.fromRGB(34, 197, 94),
+		Material = Enum.Material.Grass,
+		Parent = model,
+	})
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D VIP Lounge Booth
+function ModelFactory.BuildLoungeBooth(parent: Instance, cf: CFrame, accentColor: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = "LoungeBooth"
+
+	part({
+		Name = "SofaSeat",
+		Size = Vector3.new(10, 1.4, 3.2),
+		CFrame = cf * CFrame.new(0, 0.7, 0),
+		Color = Color3.fromRGB(30, 41, 59),
+		Parent = model,
+	})
+	part({
+		Name = "SofaBack",
+		Size = Vector3.new(10, 2.2, 0.8),
+		CFrame = cf * CFrame.new(0, 2.0, 1.2),
+		Color = accentColor,
+		Parent = model,
+	})
+	part({
+		Name = "Table",
+		Size = Vector3.new(6, 1.2, 2.4),
+		CFrame = cf * CFrame.new(0, 0.6, -4.2),
+		Color = Color3.fromRGB(148, 163, 184),
+		Material = Enum.Material.Glass,
+		Transparency = 0.3,
+		Parent = model,
+	})
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Hammer Tool (labeled "Hammer", opens the secret panel when activated)
+function ModelFactory.BuildHammerTool(): Tool
+	local tool = Instance.new("Tool")
+	tool.Name = "Hammer"
+	tool.ToolTip = "Hammer"
+	tool.CanBeDropped = false
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.45, 3.4, 0.45)
+	handle.Color = Color3.fromRGB(120, 72, 42)
+	handle.Material = Enum.Material.Wood
+	handle.Parent = tool
+
+	local head = Instance.new("Part")
+	head.Name = "HammerHead"
+	head.Size = Vector3.new(1.4, 1.2, 2.6)
+	head.Color = Color3.fromRGB(250, 204, 21)
+	head.Material = Enum.Material.Metal
+	head.Reflectance = 0.35
+	head.CanCollide = false
+	head.CFrame = handle.CFrame * CFrame.new(0, 1.8, 0)
+	head.Parent = tool
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = handle
+	weld.Part1 = head
+	weld.Parent = head
+
+	local glow = Instance.new("Part")
+	glow.Name = "HammerGlow"
+	glow.Size = Vector3.new(1.5, 0.35, 2.7)
+	glow.Color = Color3.fromRGB(239, 68, 68)
+	glow.Material = Enum.Material.Neon
+	glow.CanCollide = false
+	glow.CFrame = head.CFrame
+	glow.Parent = tool
+
+	local weld2 = Instance.new("WeldConstraint")
+	weld2.Part0 = head
+	weld2.Part1 = glow
+	weld2.Parent = glow
+
+	return tool
+end
+
+-- Custom 3D Taco Model for Raining Tacos Disco Party!
+function ModelFactory.BuildTaco(position: Vector3): Model
+	local taco = Instance.new("Model")
+	taco.Name = "RainingTaco"
+
+	local shell = Instance.new("Part")
+	shell.Name = "Shell"
+	shell.Size = Vector3.new(2.2, 1.3, 1.0)
+	shell.Position = position
+	shell.Color = Color3.fromRGB(245, 190, 70)
+	shell.Material = Enum.Material.SmoothPlastic
+	shell.CanCollide = false
+	shell.Anchored = false
+	shell.Parent = taco
+	taco.PrimaryPart = shell
+
+	local filling = Instance.new("Part")
+	filling.Name = "Filling"
+	filling.Size = Vector3.new(1.9, 0.7, 0.7)
+	filling.Position = position + Vector3.new(0, 0.45, 0)
+	filling.Color = Color3.fromRGB(115, 62, 34)
+	filling.CanCollide = false
+	filling.Parent = taco
+
+	local lettuce = Instance.new("Part")
+	lettuce.Name = "Lettuce"
+	lettuce.Size = Vector3.new(2.0, 0.35, 0.8)
+	lettuce.Position = position + Vector3.new(0, 0.75, 0)
+	lettuce.Color = Color3.fromRGB(74, 222, 128)
+	lettuce.CanCollide = false
+	lettuce.Parent = taco
+
+	for _, p in ipairs({ filling, lettuce }) do
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = shell
+		w.Part1 = p
+		w.Parent = p
+	end
+
+	return taco
+end
+
 return ModelFactory

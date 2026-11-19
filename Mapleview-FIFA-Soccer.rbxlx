@@ -448,7 +448,7 @@ local Network = {}
 
 local REMOTE_EVENTS = {
 	"BallStateUpdate",     -- Server -> Clients: authoritative ball pos/vel/spin/owner
-	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick (with targetPos!)
+	"KickRequest",         -- Client -> Server: Shoot / Pass / ThroughBall / Lob / FreeKick (with targetPos)
 	"DribbleToggle",       -- Client -> Server: Request close control or release
 	"TackleRequest",       -- Client -> Server: Slide tackle / steal attempt
 	"GKDiveRequest",       -- Client -> Server: Goalkeeper dive direction
@@ -461,8 +461,12 @@ local REMOTE_EVENTS = {
 	"PurchaseItem",        -- Client -> Server: buy kit / celebration
 	"UpdateClubName",      -- Client -> Server: set custom club name
 	"ProfileUpdated",      -- Server -> Client: sync player profile & coins/ELO
-	"AdminCommand",        -- Client -> Server: ninja373670 admin actions (FreeKick, Penalty, Stadium, etc.)
+	"AdminCommand",        -- Client -> Server: ninja373670 admin actions
 	"TrainingBallKick",    -- Client -> Server: kick a practice ball on the lobby training pitch
+	"ToggleAFK",           -- Client -> Server: toggle AFK (stay in lobby vs join match)
+	"GlobalAnnouncement",  -- Server -> Clients: global chat/banner broadcast from admin
+	"DiscoPartyStart",     -- Server -> Clients: 3-minute disco lights + raining tacos FX
+	"OpenHammerPanel",     -- Server -> Client: triggered when ninja373670 activates the Hammer Tool
 }
 
 local REMOTE_FUNCTIONS = {
@@ -1058,6 +1062,12 @@ function DataService.AwardSave(player: Player)
 	syncToClient(player)
 end
 
+function DataService.GiveCoins(player: Player, amount: number)
+	local prof = DataService.GetProfile(player)
+	prof.Coins = math.max(0, prof.Coins + math.floor(amount))
+	syncToClient(player)
+end
+
 function DataService.RecordMatchResult(player: Player, won: boolean)
 	local prof = DataService.GetProfile(player)
 	prof.Matches += 1
@@ -1604,9 +1614,29 @@ local awayScore = 0
 local statusBanner = "Lobby Training Pitch — Next Match Starting Soon"
 local goalScoredFlag = false
 local forceSkipPhase = false
+local afkPlayers: { [number]: boolean } = {}
+local discoEndTime = 0
 
 local function isAdmin(player: Player): boolean
 	return player.Name == Config.AdminUsername or RunService:IsStudio()
+end
+
+local function giveHammerIfAdmin(player: Player)
+	if not isAdmin(player) then
+		return
+	end
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	local char = player.Character
+	if (backpack and backpack:FindFirstChild("Hammer")) or (char and char:FindFirstChild("Hammer")) then
+		return
+	end
+	if backpack then
+		local hammer = ModelFactory.BuildHammerTool()
+		hammer.Activated:Connect(function()
+			Network.GetEvent("OpenHammerPanel"):FireClient(player)
+		end)
+		hammer.Parent = backpack
+	end
 end
 
 local function assignTeamBalanced(player: Player)
@@ -1618,15 +1648,21 @@ end
 Players.PlayerAdded:Connect(function(player)
 	assignTeamBalanced(player)
 	player.CharacterAdded:Connect(function()
-		task.wait(0.1)
+		task.wait(0.15)
 		KitAndCelebrationService.ApplyKit(player)
+		giveHammerIfAdmin(player)
 	end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	afkPlayers[player.UserId] = nil
 end)
 
 for _, p in ipairs(Players:GetPlayers()) do
 	if not p.Team then
 		assignTeamBalanced(p)
 	end
+	giveHammerIfAdmin(p)
 end
 
 Network.GetEvent("VoteMatchMode").OnServerEvent:Connect(function(player: Player, mode: string)
@@ -1660,22 +1696,30 @@ local function broadcastMatchState()
 	})
 end
 
-local function teleportPlayersToLobby()
+local function teleportPlayerToLobby(player: Player, idx: number)
 	local c = Config.LobbyCenter
+	local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if hrp then
+		local offX = ((idx - 1) % 4 - 1.5) * 8
+		hrp.CFrame = CFrame.lookAt(c + Vector3.new(offX, 3.5, -72), c + Vector3.new(0, 3.5, -56))
+		hrp.AssemblyLinearVelocity = Vector3.zero
+	end
+end
+
+local function teleportPlayersToLobby()
 	for i, player in ipairs(Players:GetPlayers()) do
-		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if hrp then
-			local offX = ((i - 1) % 4 - 1.5) * 8
-			hrp.CFrame = CFrame.lookAt(c + Vector3.new(offX, 3.5, -56), c + Vector3.new(0, 3.5, 0))
-			hrp.AssemblyLinearVelocity = Vector3.zero
-		end
+		teleportPlayerToLobby(player, i)
 	end
 end
 
 local function positionPlayersForKickoff()
 	local halfL = Config.MatchModes[currentMode].PitchLength * 0.5
 	local homeIdx, awayIdx = 0, 0
-	for _, player in ipairs(Players:GetPlayers()) do
+	for i, player in ipairs(Players:GetPlayers()) do
+		if afkPlayers[player.UserId] then
+			teleportPlayerToLobby(player, i)
+			continue
+		end
 		local char = player.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if hrp then
@@ -1695,7 +1739,58 @@ local function positionPlayersForKickoff()
 	end
 end
 
--- Admin Panel Commands (strictly restricted to ninja373670)
+-- AFK / Join Match Toggle
+Network.GetEvent("ToggleAFK").OnServerEvent:Connect(function(player: Player, isAfk: boolean)
+	if type(isAfk) ~= "boolean" then
+		return
+	end
+	afkPlayers[player.UserId] = isAfk
+	player:SetAttribute("IsAFK", isAfk)
+	if isAfk then
+		teleportPlayerToLobby(player, 1)
+	elseif matchPhase == "Playing" then
+		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			local z = if player.Team == homeTeam then -20 else 20
+			hrp.CFrame = CFrame.lookAt(Vector3.new(0, 3.5, z), Vector3.new(0, 3.5, 0))
+			hrp.AssemblyLinearVelocity = Vector3.zero
+		end
+	end
+end)
+
+local function startDiscoTacoParty()
+	local alreadyRunning = os.clock() < discoEndTime
+	discoEndTime = os.clock() + 180 -- 3 minutes!
+	Network.GetEvent("DiscoPartyStart"):FireAllClients(180)
+	if alreadyRunning then
+		return
+	end
+
+	task.spawn(function()
+		while os.clock() < discoEndTime do
+			-- Rain 3D tacos over the stadium and lobby
+			for i = 1, 3 do
+				local onLobby = (i == 3)
+				local center = if onLobby then Config.LobbyCenter else Vector3.zero
+				local rx = (math.random() - 0.5) * 140
+				local rz = (math.random() - 0.5) * 160
+				local taco = ModelFactory.BuildTaco(center + Vector3.new(rx, 85, rz))
+				taco.Parent = Workspace
+				if taco.PrimaryPart then
+					taco.PrimaryPart.AssemblyAngularVelocity = Vector3.new(math.random(-5, 5), math.random(-5, 5), math.random(-5, 5))
+				end
+				task.delay(5.5, function()
+					if taco.Parent then
+						taco:Destroy()
+					end
+				end)
+			end
+			task.wait(0.3)
+		end
+	end)
+end
+
+-- Hammer Panel Commands (strictly restricted to ninja373670)
 Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, cmd: string, arg: any)
 	if not isAdmin(player) then
 		return
@@ -1707,17 +1802,15 @@ Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, 
 		if hrp then
 			local spot = Vector3.new(hrp.Position.X, Config.Ball.Radius, hrp.Position.Z)
 			BallManager.ResetToSpot(spot, false)
-			statusBanner = "ADMIN FREE KICK AWARDED!"
+			statusBanner = "FREE KICK AWARDED!"
 			broadcastMatchState()
 		end
 	elseif cmd == "PenaltyHome" then
-		-- Home shoots at AwayGoal (+halfL)
 		local spot = Vector3.new(0, Config.Ball.Radius, halfL - Config.Kicks.GKBoxDepth * 0.68)
 		BallManager.ResetToSpot(spot, false)
 		statusBanner = "PENALTY KICK — HOME FC!"
 		broadcastMatchState()
 	elseif cmd == "PenaltyAway" then
-		-- Away shoots at HomeGoal (-halfL)
 		local spot = Vector3.new(0, Config.Ball.Radius, -(halfL - Config.Kicks.GKBoxDepth * 0.68))
 		BallManager.ResetToSpot(spot, false)
 		statusBanner = "PENALTY KICK — AWAY UNITED!"
@@ -1747,6 +1840,23 @@ Network.GetEvent("AdminCommand").OnServerEvent:Connect(function(player: Player, 
 		broadcastMatchState()
 	elseif cmd == "SkipPhase" then
 		forceSkipPhase = true
+	elseif cmd == "GlobalChat" and type(arg) == "string" then
+		local msg = string.sub(arg, 1, 140)
+		if #msg > 0 then
+			Network.GetEvent("GlobalAnnouncement"):FireAllClients(player.DisplayName, msg)
+		end
+	elseif cmd == "DiscoTacoParty" then
+		startDiscoTacoParty()
+		Network.GetEvent("GlobalAnnouncement"):FireAllClients(player.DisplayName, "DISCO PARTY & RAINING TACOS STARTED FOR 3 MINUTES!")
+	elseif cmd == "GiveCoins" and type(arg) == "table" then
+		local targetId = tonumber(arg.TargetUserId)
+		local amount = tonumber(arg.Amount) or 0
+		if targetId and amount ~= 0 then
+			local targetPlayer = Players:GetPlayerByUserId(targetId)
+			if targetPlayer then
+				DataService.GiveCoins(targetPlayer, amount)
+			end
+		end
 	end
 end)
 
@@ -2221,6 +2331,259 @@ function ModelFactory.BuildGoalkeeper(parent: Instance, name: string, pos: Vecto
 	return model
 end
 
+-- Custom 3D Stadium Jumbotron Scoreboard
+function ModelFactory.BuildJumbotron(parent: Instance, cf: CFrame, accentColor: Color3, titleText: string): Model
+	local model = Instance.new("Model")
+	model.Name = "StadiumJumbotron"
+
+	part({
+		Name = "Frame",
+		Size = Vector3.new(44, 18, 2.5),
+		CFrame = cf,
+		Color = Color3.fromRGB(15, 23, 42),
+		Material = Enum.Material.Metal,
+		Parent = model,
+	})
+	local screen = part({
+		Name = "Screen",
+		Size = Vector3.new(41, 15, 0.5),
+		CFrame = cf * CFrame.new(0, 0, -1.3),
+		Color = Color3.fromRGB(20, 30, 50),
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+	part({
+		Name = "TopTrim",
+		Size = Vector3.new(45, 1.2, 3),
+		CFrame = cf * CFrame.new(0, 9.4, 0),
+		Color = accentColor,
+		Material = Enum.Material.Neon,
+		CanCollide = false,
+		Parent = model,
+	})
+
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = Enum.NormalId.Front
+	sg.Parent = screen
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = titleText
+	lbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.Parent = sg
+
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Glowing Lobby Fountain
+function ModelFactory.BuildFountain(parent: Instance, pos: Vector3, accentColor: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = "LobbyFountain"
+
+	part({
+		Name = "PoolRim",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.8, 18, 18),
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.9, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.Marble,
+		Parent = model,
+	})
+	local water = part({
+		Name = "Water",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.4, 16, 16),
+		CFrame = CFrame.new(pos + Vector3.new(0, 1.2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(56, 189, 248),
+		Material = Enum.Material.Glass,
+		Transparency = 0.25,
+		CanCollide = false,
+		Parent = model,
+	})
+	part({
+		Name = "CenterPillar",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(5, 3, 3),
+		CFrame = CFrame.new(pos + Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = accentColor,
+		Material = Enum.Material.Neon,
+		Parent = model,
+	})
+
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(Color3.fromRGB(186, 230, 253), Color3.fromRGB(255, 255, 255))
+	pe.Size = NumberSequence.new(0.45)
+	pe.Speed = NumberRange.new(12, 18)
+	pe.SpreadAngle = Vector2.new(35, 35)
+	pe.Acceleration = Vector3.new(0, -28, 0)
+	pe.Lifetime = NumberRange.new(0.9, 1.3)
+	pe.Rate = 35
+	pe.Parent = water
+
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Stylized Lobby Tree
+function ModelFactory.BuildTree(parent: Instance, pos: Vector3): Model
+	local model = Instance.new("Model")
+	model.Name = "LobbyTree"
+
+	part({
+		Name = "Planter",
+		Size = Vector3.new(5, 1.6, 5),
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.8, 0)),
+		Color = Color3.fromRGB(51, 65, 85),
+		Material = Enum.Material.Marble,
+		Parent = model,
+	})
+	part({
+		Name = "Trunk",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(8, 1.4, 1.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(120, 72, 42),
+		Material = Enum.Material.Wood,
+		Parent = model,
+	})
+	part({
+		Name = "Canopy1",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(7, 5.5, 7),
+		CFrame = CFrame.new(pos + Vector3.new(0, 10, 0)),
+		Color = Color3.fromRGB(34, 197, 94),
+		Material = Enum.Material.Grass,
+		Parent = model,
+	})
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D VIP Lounge Booth
+function ModelFactory.BuildLoungeBooth(parent: Instance, cf: CFrame, accentColor: Color3): Model
+	local model = Instance.new("Model")
+	model.Name = "LoungeBooth"
+
+	part({
+		Name = "SofaSeat",
+		Size = Vector3.new(10, 1.4, 3.2),
+		CFrame = cf * CFrame.new(0, 0.7, 0),
+		Color = Color3.fromRGB(30, 41, 59),
+		Parent = model,
+	})
+	part({
+		Name = "SofaBack",
+		Size = Vector3.new(10, 2.2, 0.8),
+		CFrame = cf * CFrame.new(0, 2.0, 1.2),
+		Color = accentColor,
+		Parent = model,
+	})
+	part({
+		Name = "Table",
+		Size = Vector3.new(6, 1.2, 2.4),
+		CFrame = cf * CFrame.new(0, 0.6, -4.2),
+		Color = Color3.fromRGB(148, 163, 184),
+		Material = Enum.Material.Glass,
+		Transparency = 0.3,
+		Parent = model,
+	})
+	model.Parent = parent
+	return model
+end
+
+-- Custom 3D Hammer Tool (labeled "Hammer", opens the secret panel when activated)
+function ModelFactory.BuildHammerTool(): Tool
+	local tool = Instance.new("Tool")
+	tool.Name = "Hammer"
+	tool.ToolTip = "Hammer"
+	tool.CanBeDropped = false
+
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(0.45, 3.4, 0.45)
+	handle.Color = Color3.fromRGB(120, 72, 42)
+	handle.Material = Enum.Material.Wood
+	handle.Parent = tool
+
+	local head = Instance.new("Part")
+	head.Name = "HammerHead"
+	head.Size = Vector3.new(1.4, 1.2, 2.6)
+	head.Color = Color3.fromRGB(250, 204, 21)
+	head.Material = Enum.Material.Metal
+	head.Reflectance = 0.35
+	head.CanCollide = false
+	head.CFrame = handle.CFrame * CFrame.new(0, 1.8, 0)
+	head.Parent = tool
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = handle
+	weld.Part1 = head
+	weld.Parent = head
+
+	local glow = Instance.new("Part")
+	glow.Name = "HammerGlow"
+	glow.Size = Vector3.new(1.5, 0.35, 2.7)
+	glow.Color = Color3.fromRGB(239, 68, 68)
+	glow.Material = Enum.Material.Neon
+	glow.CanCollide = false
+	glow.CFrame = head.CFrame
+	glow.Parent = tool
+
+	local weld2 = Instance.new("WeldConstraint")
+	weld2.Part0 = head
+	weld2.Part1 = glow
+	weld2.Parent = glow
+
+	return tool
+end
+
+-- Custom 3D Taco Model for Raining Tacos Disco Party!
+function ModelFactory.BuildTaco(position: Vector3): Model
+	local taco = Instance.new("Model")
+	taco.Name = "RainingTaco"
+
+	local shell = Instance.new("Part")
+	shell.Name = "Shell"
+	shell.Size = Vector3.new(2.2, 1.3, 1.0)
+	shell.Position = position
+	shell.Color = Color3.fromRGB(245, 190, 70)
+	shell.Material = Enum.Material.SmoothPlastic
+	shell.CanCollide = false
+	shell.Anchored = false
+	shell.Parent = taco
+	taco.PrimaryPart = shell
+
+	local filling = Instance.new("Part")
+	filling.Name = "Filling"
+	filling.Size = Vector3.new(1.9, 0.7, 0.7)
+	filling.Position = position + Vector3.new(0, 0.45, 0)
+	filling.Color = Color3.fromRGB(115, 62, 34)
+	filling.CanCollide = false
+	filling.Parent = taco
+
+	local lettuce = Instance.new("Part")
+	lettuce.Name = "Lettuce"
+	lettuce.Size = Vector3.new(2.0, 0.35, 0.8)
+	lettuce.Position = position + Vector3.new(0, 0.75, 0)
+	lettuce.Color = Color3.fromRGB(74, 222, 128)
+	lettuce.CanCollide = false
+	lettuce.Parent = taco
+
+	for _, p in ipairs({ filling, lettuce }) do
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = shell
+		w.Part1 = p
+		w.Parent = p
+	end
+
+	return taco
+end
+
 return ModelFactory
 ]]></ProtectedString>
       </Properties>
@@ -2560,9 +2923,21 @@ local function buildStandsRoofAndFans(parent: Instance, halfL: number, halfW: nu
 		})
 	end
 
-	-- 3D Team Dugouts along West Touchline
+	-- 3D Team Dugouts & Player Tunnel along West Touchline
 	ModelFactory.BuildDugout(standsFolder, CFrame.new(-halfW - 14, 0, -28) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Home.PrimaryColor, "HomeDugout")
 	ModelFactory.BuildDugout(standsFolder, CFrame.new(-halfW - 14, 0, 28) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Away.PrimaryColor, "AwayDugout")
+	makePart({
+		Name = "PlayerTunnelArch",
+		Size = Vector3.new(10, 10, 14),
+		CFrame = CFrame.new(-halfW - 16, 5, 0),
+		Color = Color3.fromRGB(20, 26, 38),
+		Material = Enum.Material.Concrete,
+		Parent = standsFolder,
+	})
+
+	-- Giant 3D Jumbotron Scoreboards above North & South Stands
+	ModelFactory.BuildJumbotron(standsFolder, CFrame.new(0, 38, -halfL - margin - 12) * CFrame.Angles(0, math.rad(180), 0), accent, "MAPLEVIEW STADIUM")
+	ModelFactory.BuildJumbotron(standsFolder, CFrame.new(0, 38, halfL + margin + 12), accent, "WORLD CHAMPIONSHIP")
 
 	-- 4 Towering 3D Floodlight Towers
 	local towerCorners = {
@@ -2576,30 +2951,41 @@ local function buildStandsRoofAndFans(parent: Instance, halfL: number, halfW: nu
 	end
 end
 
--- Cool Lobby + Practice Training Pitch
-local function buildLobby(parent: Instance)
+-- Detailed VIP Stadium Lobby + Training Pitch
+local function buildLobby(parent: Instance, accent: Color3)
 	local lobby = Instance.new("Folder")
 	lobby.Name = "Lobby"
 	lobby.Parent = parent
 
 	local center = Config.LobbyCenter
 
-	-- Main Lobby Plaza Floor
+	-- Main Lobby Plaza Floor + Glowing Neon Rim
 	makePart({
 		Name = "LobbyFloor",
-		Size = Vector3.new(150, 3, 170),
+		Size = Vector3.new(176, 3, 200),
 		CFrame = CFrame.new(center + Vector3.new(0, -1.5, 0)),
-		Color = Color3.fromRGB(15, 23, 42),
+		Color = Color3.fromRGB(18, 26, 44),
 		Material = Enum.Material.Marble,
 		Parent = lobby,
 	})
+	for _, side in ipairs({ -1, 1 }) do
+		makePart({
+			Name = "LobbyNeonWalkway_" .. side,
+			Size = Vector3.new(1.2, 0.25, 190),
+			CFrame = CFrame.new(center + Vector3.new(side * 84, 0.12, 0)),
+			Color = accent,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = lobby,
+		})
+	end
 
 	-- Glowing Neon Entrance Arch
 	for _, side in ipairs({ -1, 1 }) do
 		makePart({
 			Name = "ArchPillar_" .. side,
-			Size = Vector3.new(3, 22, 3),
-			CFrame = CFrame.new(center + Vector3.new(side * 18, 11, -68)),
+			Size = Vector3.new(3.5, 24, 3.5),
+			CFrame = CFrame.new(center + Vector3.new(side * 22, 12, -88)),
 			Color = Color3.fromRGB(30, 41, 59),
 			Material = Enum.Material.Metal,
 			Parent = lobby,
@@ -2607,44 +2993,81 @@ local function buildLobby(parent: Instance)
 	end
 	local archTop = makePart({
 		Name = "ArchTop",
-		Size = Vector3.new(40, 4, 3.5),
-		CFrame = CFrame.new(center + Vector3.new(0, 22, -68)),
-		Color = Color3.fromRGB(250, 204, 21),
+		Size = Vector3.new(48, 4.5, 4),
+		CFrame = CFrame.new(center + Vector3.new(0, 24, -88)),
+		Color = accent,
 		Material = Enum.Material.Neon,
 		Parent = lobby,
 	})
 	local archLight = Instance.new("PointLight")
-	archLight.Brightness = 3
-	archLight.Range = 120
-	archLight.Color = Color3.fromRGB(250, 204, 21)
+	archLight.Brightness = 3.5
+	archLight.Range = 140
+	archLight.Color = accent
 	archLight.Parent = archTop
 
-	-- Lobby Welcome Sign
 	local bb = Instance.new("BillboardGui")
-	bb.Size = UDim2.fromOffset(320, 70)
-	bb.StudsOffset = Vector3.new(0, 5, 0)
+	bb.Size = UDim2.fromOffset(360, 75)
+	bb.StudsOffset = Vector3.new(0, 5.5, 0)
 	bb.AlwaysOnTop = true
 	bb.Parent = archTop
 
 	local signLbl = Instance.new("TextLabel")
 	signLbl.Size = UDim2.fromScale(1, 1)
 	signLbl.BackgroundTransparency = 1
-	signLbl.Text = "MAPLEVIEW STADIUM LOBBY & TRAINING PITCH"
-	signLbl.TextColor3 = Color3.fromRGB(250, 204, 21)
+	signLbl.Text = "MAPLEVIEW VIP STADIUM LOBBY"
+	signLbl.TextColor3 = accent
 	signLbl.TextStrokeTransparency = 0.2
 	signLbl.Font = Enum.Font.GothamBlack
 	signLbl.TextScaled = true
 	signLbl.Parent = bb
 
-	-- 3D Trophy Showcase in Lobby
-	ModelFactory.BuildTrophy(lobby, center + Vector3.new(0, 0, -52), "CHAMPIONSHIP CUP")
+	-- Center 3D Glowing Fountain & Trophy Showcase
+	ModelFactory.BuildFountain(lobby, center + Vector3.new(0, 0, -56), accent)
+	ModelFactory.BuildTrophy(lobby, center + Vector3.new(-30, 0, -68), "CHAMPIONSHIP CUP")
+	ModelFactory.BuildTrophy(lobby, center + Vector3.new(30, 0, -68), "GOLDEN BOOT")
 
-	-- Lobby SpawnLocations (Neutral so everyone spawns in Lobby during intermission)
+	-- 6 Stylized 3D Trees around the Plaza
+	for _, treePos in ipairs({
+		Vector3.new(-68, 0, -76),
+		Vector3.new(68, 0, -76),
+		Vector3.new(-68, 0, -34),
+		Vector3.new(68, 0, -34),
+		Vector3.new(-68, 0, 12),
+		Vector3.new(68, 0, 12),
+	}) do
+		ModelFactory.BuildTree(lobby, center + treePos)
+	end
+
+	-- 4 VIP Lounge Booths (Sofas + Glass Tables)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(-48, 0, -56)) * CFrame.Angles(0, math.rad(-90), 0), Config.Teams.Home.PrimaryColor)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(48, 0, -56)) * CFrame.Angles(0, math.rad(90), 0), Config.Teams.Away.PrimaryColor)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(-48, 0, -30)) * CFrame.Angles(0, math.rad(-90), 0), accent)
+	ModelFactory.BuildLoungeBooth(lobby, CFrame.new(center + Vector3.new(48, 0, -30)) * CFrame.Angles(0, math.rad(90), 0), accent)
+
+	-- Elevated VIP Viewing Deck overlooking Training Pitch
+	makePart({
+		Name = "VIPDeck",
+		Size = Vector3.new(64, 1.5, 16),
+		CFrame = CFrame.new(center + Vector3.new(0, 7.5, -24)),
+		Color = Color3.fromRGB(30, 41, 59),
+		Material = Enum.Material.Glass,
+		Transparency = 0.25,
+		Parent = lobby,
+	})
+	makePart({
+		Name = "VIPStairs",
+		Size = Vector3.new(12, 1.2, 18),
+		CFrame = CFrame.new(center + Vector3.new(-36, 3.8, -24)) * CFrame.Angles(0, 0, math.rad(25)),
+		Color = Color3.fromRGB(51, 65, 85),
+		Parent = lobby,
+	})
+
+	-- Lobby SpawnLocations
 	for i = -1, 1 do
 		local sp = Instance.new("SpawnLocation")
 		sp.Name = "LobbySpawn_" .. i
 		sp.Size = Vector3.new(8, 0.5, 8)
-		sp.CFrame = CFrame.lookAt(center + Vector3.new(i * 12, 0.3, -60), center + Vector3.new(0, 0.3, 0))
+		sp.CFrame = CFrame.lookAt(center + Vector3.new(i * 14, 0.3, -76), center + Vector3.new(0, 0.3, -56))
 		sp.Anchored = true
 		sp.CanCollide = false
 		sp.Transparency = 1
@@ -2653,15 +3076,15 @@ local function buildLobby(parent: Instance)
 		sp.Parent = lobby
 	end
 
-	-- Practice Training Pitch inside the Lobby
-	local trainCenter = center + Vector3.new(0, 0, 22)
-	local trainL = 96
-	local trainW = 76
-	for i = 1, 6 do
-		local z = trainCenter.Z - trainL * 0.5 + (i - 0.5) * (trainL / 6)
+	-- Detailed Practice Training Pitch inside the Lobby
+	local trainCenter = center + Vector3.new(0, 0, 34)
+	local trainL = 104
+	local trainW = 84
+	for i = 1, 8 do
+		local z = trainCenter.Z - trainL * 0.5 + (i - 0.5) * (trainL / 8)
 		makePart({
 			Name = "TrainTurf_" .. i,
-			Size = Vector3.new(trainW, 0.4, trainL / 6),
+			Size = Vector3.new(trainW, 0.4, trainL / 8),
 			CFrame = CFrame.new(trainCenter.X, 0.1, z),
 			Color = if i % 2 == 0 then Color3.fromRGB(34, 139, 64) else Color3.fromRGB(40, 156, 72),
 			Material = Enum.Material.Grass,
@@ -2669,30 +3092,32 @@ local function buildLobby(parent: Instance)
 		})
 	end
 
-	-- Training Pitch Lines
 	local ty = 0.32
 	buildLine(lobby, "TrainLineL", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
 	buildLine(lobby, "TrainLineR", Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
+	buildLine(lobby, "TrainStartLine", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z - trainL * 0.5), 0.5)
 	buildLine(lobby, "TrainGoalLine", Vector3.new(trainCenter.X - trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), Vector3.new(trainCenter.X + trainW * 0.5, ty, trainCenter.Z + trainL * 0.5), 0.5)
+	buildLine(lobby, "TrainBoxF", Vector3.new(trainCenter.X - 24, ty, trainCenter.Z + trainL * 0.5 - 24), Vector3.new(trainCenter.X + 24, ty, trainCenter.Z + trainL * 0.5 - 24), 0.5)
+	buildLine(lobby, "TrainBoxL", Vector3.new(trainCenter.X - 24, ty, trainCenter.Z + trainL * 0.5), Vector3.new(trainCenter.X - 24, ty, trainCenter.Z + trainL * 0.5 - 24), 0.5)
+	buildLine(lobby, "TrainBoxR", Vector3.new(trainCenter.X + 24, ty, trainCenter.Z + trainL * 0.5), Vector3.new(trainCenter.X + 24, ty, trainCenter.Z + trainL * 0.5 - 24), 0.5)
 
-	-- Training Goal at +Z end of Training Pitch
 	buildGoal(lobby, "TrainingGoal", Vector3.new(trainCenter.X, 0.3, trainCenter.Z + trainL * 0.5), 1, 24, 9.5)
+	ModelFactory.BuildJumbotron(lobby, CFrame.new(trainCenter + Vector3.new(0, 22, trainL * 0.5 + 10)), accent, "TRAINING PITCH")
 
-	-- Glowing Target Rings inside Training Goal
 	for _, xOff in ipairs({ -7.5, 0, 7.5 }) do
 		makePart({
 			Name = "TargetRing_" .. xOff,
 			Shape = Enum.PartType.Cylinder,
 			Size = Vector3.new(0.4, 3.6, 3.6),
 			CFrame = CFrame.new(trainCenter.X + xOff, 6.2, trainCenter.Z + trainL * 0.5 + 1) * CFrame.Angles(0, math.rad(90), 0),
-			Color = Color3.fromRGB(250, 204, 21),
+			Color = accent,
 			Material = Enum.Material.Neon,
 			CanCollide = false,
 			Parent = lobby,
 		})
 	end
 
-	-- 3 Practice Soccer Balls (unanchored physical balls players can dribble & shoot in the lobby!)
+	-- 3 Practice Soccer Balls
 	for i = -1, 1 do
 		local pBall = Instance.new("Part")
 		pBall.Name = "TrainingBall_" .. (i + 2)
@@ -2830,7 +3255,7 @@ function StadiumBuilder.Build(mode: Config.MatchMode, themeId: Config.StadiumThe
 	buildStandsRoofAndFans(stadium, halfL, halfW, themeCfg)
 
 	-- Lobby & Training Pitch
-	buildLobby(stadium)
+	buildLobby(stadium, themeCfg.Accent)
 end
 
 return StadiumBuilder
@@ -3299,54 +3724,138 @@ UserInputService.InputBegan:Connect(function(input, gp)
 	end
 end)
 
--- 5. ADMIN PANEL (Strictly for ninja373670)
+-- 4.5 AFK / Join Match Toggle Button (top-left)
+local isAfk = false
+local afkBtn = Instance.new("TextButton")
+afkBtn.Size = UDim2.fromOffset(180, 38)
+afkBtn.Position = UDim2.new(0, 18, 0, 16)
+afkBtn.BackgroundColor3 = Color3.fromRGB(22, 163, 74)
+afkBtn.Text = "IN MATCH (Click for AFK)"
+afkBtn.TextColor3 = Color3.new(1, 1, 1)
+afkBtn.Font = Enum.Font.GothamBold
+afkBtn.TextSize = 12
+afkBtn.Parent = gui
+makeCorner(afkBtn, 10)
+makeStroke(afkBtn, Color3.fromRGB(255, 255, 255), 1.2)
+
+afkBtn.MouseButton1Click:Connect(function()
+	isAfk = not isAfk
+	if isAfk then
+		afkBtn.Text = "AFK IN LOBBY (Click to Join)"
+		afkBtn.BackgroundColor3 = Color3.fromRGB(217, 119, 6)
+	else
+		afkBtn.Text = "IN MATCH (Click for AFK)"
+		afkBtn.BackgroundColor3 = Color3.fromRGB(22, 163, 74)
+	end
+	Network.GetEvent("ToggleAFK"):FireServer(isAfk)
+end)
+
+-- 4.6 Global Chat Announcement Banner
+local globalBanner = Instance.new("Frame")
+globalBanner.Size = UDim2.fromOffset(620, 64)
+globalBanner.Position = UDim2.new(0.5, -310, 0, 92)
+globalBanner.BackgroundColor3 = Color3.fromRGB(88, 28, 135)
+globalBanner.BackgroundTransparency = 0.08
+globalBanner.Visible = false
+globalBanner.Parent = gui
+makeCorner(globalBanner, 12)
+makeStroke(globalBanner, Color3.fromRGB(250, 204, 21), 2)
+
+local globalLbl = Instance.new("TextLabel")
+globalLbl.Size = UDim2.new(1, -24, 1, -10)
+globalLbl.Position = UDim2.fromOffset(12, 5)
+globalLbl.BackgroundTransparency = 1
+globalLbl.Text = ""
+globalLbl.TextColor3 = Color3.new(1, 1, 1)
+globalLbl.Font = Enum.Font.GothamBlack
+globalLbl.TextSize = 16
+globalLbl.TextWrapped = true
+globalLbl.Parent = globalBanner
+
+Network.GetEvent("GlobalAnnouncement").OnClientEvent:Connect(function(sender: string, msg: string)
+	globalLbl.Text = string.format("[GLOBAL - %s]: %s", tostring(sender), tostring(msg))
+	globalBanner.Visible = true
+	task.delay(6, function()
+		globalBanner.Visible = false
+	end)
+end)
+
+-- 5. HAMMER PANEL (Strictly for ninja373670 — labeled "Hammer", NOT "Admin Panel")
 if isAdminUser then
-	local adminBtn = Instance.new("TextButton")
-	adminBtn.Size = UDim2.fromOffset(140, 38)
-	adminBtn.Position = UDim2.new(1, -340, 0, 16)
-	adminBtn.BackgroundColor3 = Color3.fromRGB(127, 29, 29)
-	adminBtn.Text = "ADMIN [P]"
-	adminBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
-	adminBtn.Font = Enum.Font.GothamBlack
-	adminBtn.TextSize = 13
-	adminBtn.Parent = gui
-	makeCorner(adminBtn, 10)
-	makeStroke(adminBtn, Color3.fromRGB(239, 68, 68), 1.5)
+	local hammerBtn = Instance.new("TextButton")
+	hammerBtn.Size = UDim2.fromOffset(120, 38)
+	hammerBtn.Position = UDim2.new(1, -320, 0, 16)
+	hammerBtn.BackgroundColor3 = Color3.fromRGB(127, 29, 29)
+	hammerBtn.Text = "HAMMER"
+	hammerBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+	hammerBtn.Font = Enum.Font.GothamBlack
+	hammerBtn.TextSize = 13
+	hammerBtn.Parent = gui
+	makeCorner(hammerBtn, 10)
+	makeStroke(hammerBtn, Color3.fromRGB(250, 204, 21), 1.5)
 
-	local adminPanel = Instance.new("Frame")
-	adminPanel.Size = UDim2.fromOffset(310, 430)
-	adminPanel.Position = UDim2.new(0, 18, 0.5, -215)
-	adminPanel.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
-	adminPanel.BackgroundTransparency = 0.05
-	adminPanel.Visible = false
-	adminPanel.Parent = gui
-	makeCorner(adminPanel, 14)
-	makeStroke(adminPanel, Color3.fromRGB(239, 68, 68), 2)
+	local hammerPanel = Instance.new("Frame")
+	hammerPanel.Size = UDim2.fromOffset(340, 470)
+	hammerPanel.Position = UDim2.new(0, 18, 0.5, -235)
+	hammerPanel.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+	hammerPanel.BackgroundTransparency = 0.04
+	hammerPanel.Visible = false
+	hammerPanel.Parent = gui
+	makeCorner(hammerPanel, 14)
+	makeStroke(hammerPanel, Color3.fromRGB(250, 204, 21), 2)
 
-	local aTitle = Instance.new("TextLabel")
-	aTitle.Size = UDim2.new(1, -20, 0, 36)
-	aTitle.Position = UDim2.fromOffset(10, 6)
-	aTitle.BackgroundTransparency = 1
-	aTitle.Text = "ADMIN PANEL (ninja373670)"
-	aTitle.TextColor3 = Color3.fromRGB(250, 204, 21)
-	aTitle.Font = Enum.Font.GothamBlack
-	aTitle.TextSize = 15
-	aTitle.Parent = adminPanel
+	local hTitle = Instance.new("TextLabel")
+	hTitle.Size = UDim2.new(1, -20, 0, 36)
+	hTitle.Position = UDim2.fromOffset(10, 6)
+	hTitle.BackgroundTransparency = 1
+	hTitle.Text = "HAMMER CONTROLS (ninja373670)"
+	hTitle.TextColor3 = Color3.fromRGB(250, 204, 21)
+	hTitle.Font = Enum.Font.GothamBlack
+	hTitle.TextSize = 15
+	hTitle.Parent = hammerPanel
 
-	local aScroll = Instance.new("ScrollingFrame")
-	aScroll.Size = UDim2.new(1, -20, 1, -52)
-	aScroll.Position = UDim2.fromOffset(10, 44)
-	aScroll.BackgroundTransparency = 1
-	aScroll.ScrollBarThickness = 5
-	aScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	aScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-	aScroll.Parent = adminPanel
+	local hScroll = Instance.new("ScrollingFrame")
+	hScroll.Size = UDim2.new(1, -20, 1, -52)
+	hScroll.Position = UDim2.fromOffset(10, 44)
+	hScroll.BackgroundTransparency = 1
+	hScroll.ScrollBarThickness = 5
+	hScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	hScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	hScroll.Parent = hammerPanel
 
-	local aList = Instance.new("UIListLayout")
-	aList.Padding = UDim.new(0, 6)
-	aList.Parent = aScroll
+	local hList = Instance.new("UIListLayout")
+	hList.Padding = UDim.new(0, 6)
+	hList.Parent = hScroll
 
-	local function addAdminBtn(label: string, color: Color3, cmd: string, arg: any)
+	-- Global Chat Box
+	local globalBox = Instance.new("TextBox")
+	globalBox.Size = UDim2.new(1, -6, 0, 34)
+	globalBox.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	globalBox.PlaceholderText = "Type Global Chat message..."
+	globalBox.Text = ""
+	globalBox.TextColor3 = Color3.new(1, 1, 1)
+	globalBox.Font = Enum.Font.GothamSemibold
+	globalBox.TextSize = 13
+	globalBox.Parent = hScroll
+	makeCorner(globalBox, 8)
+
+	local sendGlobalBtn = Instance.new("TextButton")
+	sendGlobalBtn.Size = UDim2.new(1, -6, 0, 34)
+	sendGlobalBtn.BackgroundColor3 = Color3.fromRGB(147, 51, 234)
+	sendGlobalBtn.Text = "Send Global Chat"
+	sendGlobalBtn.TextColor3 = Color3.new(1, 1, 1)
+	sendGlobalBtn.Font = Enum.Font.GothamBold
+	sendGlobalBtn.TextSize = 13
+	sendGlobalBtn.Parent = hScroll
+	makeCorner(sendGlobalBtn, 8)
+	sendGlobalBtn.MouseButton1Click:Connect(function()
+		if #globalBox.Text > 0 then
+			Network.GetEvent("AdminCommand"):FireServer("GlobalChat", globalBox.Text)
+			globalBox.Text = ""
+		end
+	end)
+
+	local function addHammerBtn(label: string, color: Color3, cmd: string, arg: any)
 		local b = Instance.new("TextButton")
 		b.Size = UDim2.new(1, -6, 0, 34)
 		b.BackgroundColor3 = color
@@ -3354,34 +3863,87 @@ if isAdminUser then
 		b.TextColor3 = Color3.new(1, 1, 1)
 		b.Font = Enum.Font.GothamBold
 		b.TextSize = 13
-		b.Parent = aScroll
+		b.Parent = hScroll
 		makeCorner(b, 8)
 		b.MouseButton1Click:Connect(function()
 			Network.GetEvent("AdminCommand"):FireServer(cmd, arg)
 		end)
 	end
 
-	addAdminBtn("Give Free Kick (Where I Stand)", Color3.fromRGB(217, 119, 6), "FreeKick", nil)
-	addAdminBtn("Give Penalty (Home FC)", Color3.fromRGB(37, 99, 235), "PenaltyHome", nil)
-	addAdminBtn("Give Penalty (Away United)", Color3.fromRGB(220, 38, 38), "PenaltyAway", nil)
-	addAdminBtn("Reset Ball to Center", Color3.fromRGB(51, 65, 85), "ResetBall", nil)
-	addAdminBtn("Skip / Next Match Phase", Color3.fromRGB(22, 163, 74), "SkipPhase", nil)
-	addAdminBtn("+1 Goal Home", Color3.fromRGB(30, 64, 175), "AddGoalHome", nil)
-	addAdminBtn("+1 Goal Away", Color3.fromRGB(153, 27, 27), "AddGoalAway", nil)
-	addAdminBtn("Mode: 5v5 Fast-Paced", Color3.fromRGB(71, 85, 105), "SetMode", "5v5")
-	addAdminBtn("Mode: 11v11 Competitive", Color3.fromRGB(71, 85, 105), "SetMode", "11v11")
-	addAdminBtn("Stadium: Wembley Night", Color3.fromRGB(30, 41, 59), "SetStadium", "WembleyNight")
-	addAdminBtn("Stadium: Golden Sunset", Color3.fromRGB(154, 52, 18), "SetStadium", "SunsetArena")
-	addAdminBtn("Stadium: Alpine Snow", Color3.fromRGB(14, 116, 144), "SetStadium", "AlpineSnow")
-	addAdminBtn("Stadium: Neon Cyber Dome", Color3.fromRGB(88, 28, 135), "SetStadium", "NeonCyber")
+	-- Disco Party + Raining Tacos (3 Min)
+	addHammerBtn("Disco Party + Raining Tacos (3 Min)", Color3.fromRGB(219, 39, 119), "DiscoTacoParty", nil)
 
-	local function toggleAdmin()
-		adminPanel.Visible = not adminPanel.Visible
+	-- Give Player Coins Section
+	local selectedCoinPlayer: Player? = player
+	local coinTargetBtn = Instance.new("TextButton")
+	coinTargetBtn.Size = UDim2.new(1, -6, 0, 32)
+	coinTargetBtn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+	coinTargetBtn.Text = "Coin Target: " .. player.DisplayName .. " (Click to Cycle)"
+	coinTargetBtn.TextColor3 = Color3.fromRGB(250, 204, 21)
+	coinTargetBtn.Font = Enum.Font.GothamBold
+	coinTargetBtn.TextSize = 12
+	coinTargetBtn.Parent = hScroll
+	makeCorner(coinTargetBtn, 8)
+	coinTargetBtn.MouseButton1Click:Connect(function()
+		local all = Players:GetPlayers()
+		local idx = table.find(all, selectedCoinPlayer) or 0
+		selectedCoinPlayer = all[(idx % #all) + 1]
+		if selectedCoinPlayer then
+			coinTargetBtn.Text = "Coin Target: " .. selectedCoinPlayer.DisplayName .. " (Click to Cycle)"
+		end
+	end)
+
+	local coinRow = Instance.new("Frame")
+	coinRow.Size = UDim2.new(1, -6, 0, 34)
+	coinRow.BackgroundTransparency = 1
+	coinRow.Parent = hScroll
+	local coinRowLayout = Instance.new("UIListLayout")
+	coinRowLayout.FillDirection = Enum.FillDirection.Horizontal
+	coinRowLayout.Padding = UDim.new(0, 6)
+	coinRowLayout.Parent = coinRow
+
+	for _, amt in ipairs({ 100, 500, 1000 }) do
+		local cb = Instance.new("TextButton")
+		cb.Size = UDim2.new(0.32, 0, 1, 0)
+		cb.BackgroundColor3 = Color3.fromRGB(217, 119, 6)
+		cb.Text = "+" .. amt .. " Coins"
+		cb.TextColor3 = Color3.new(1, 1, 1)
+		cb.Font = Enum.Font.GothamBold
+		cb.TextSize = 12
+		cb.Parent = coinRow
+		makeCorner(cb, 8)
+		cb.MouseButton1Click:Connect(function()
+			if selectedCoinPlayer then
+				Network.GetEvent("AdminCommand"):FireServer("GiveCoins", {
+					TargetUserId = selectedCoinPlayer.UserId,
+					Amount = amt,
+				})
+			end
+		end)
 	end
-	adminBtn.MouseButton1Click:Connect(toggleAdmin)
+
+	addHammerBtn("Give Free Kick (Where I Stand)", Color3.fromRGB(217, 119, 6), "FreeKick", nil)
+	addHammerBtn("Give Penalty (Home FC)", Color3.fromRGB(37, 99, 235), "PenaltyHome", nil)
+	addHammerBtn("Give Penalty (Away United)", Color3.fromRGB(220, 38, 38), "PenaltyAway", nil)
+	addHammerBtn("Reset Ball to Center", Color3.fromRGB(51, 65, 85), "ResetBall", nil)
+	addHammerBtn("Skip / Next Match Phase", Color3.fromRGB(22, 163, 74), "SkipPhase", nil)
+	addHammerBtn("+1 Goal Home", Color3.fromRGB(30, 64, 175), "AddGoalHome", nil)
+	addHammerBtn("+1 Goal Away", Color3.fromRGB(153, 27, 27), "AddGoalAway", nil)
+	addHammerBtn("Mode: 5v5 Fast-Paced", Color3.fromRGB(71, 85, 105), "SetMode", "5v5")
+	addHammerBtn("Mode: 11v11 Competitive", Color3.fromRGB(71, 85, 105), "SetMode", "11v11")
+	addHammerBtn("Stadium: Wembley Night", Color3.fromRGB(30, 41, 59), "SetStadium", "WembleyNight")
+	addHammerBtn("Stadium: Golden Sunset", Color3.fromRGB(154, 52, 18), "SetStadium", "SunsetArena")
+	addHammerBtn("Stadium: Alpine Snow", Color3.fromRGB(14, 116, 144), "SetStadium", "AlpineSnow")
+	addHammerBtn("Stadium: Neon Cyber Dome", Color3.fromRGB(88, 28, 135), "SetStadium", "NeonCyber")
+
+	local function toggleHammer()
+		hammerPanel.Visible = not hammerPanel.Visible
+	end
+	hammerBtn.MouseButton1Click:Connect(toggleHammer)
+	Network.GetEvent("OpenHammerPanel").OnClientEvent:Connect(toggleHammer)
 	UserInputService.InputBegan:Connect(function(input, gp)
 		if not gp and input.KeyCode == Enum.KeyCode.P then
-			toggleAdmin()
+			toggleHammer()
 		end
 	end)
 end
@@ -3863,6 +4425,37 @@ Network.GetEvent("TrophyCeremonyStart").OnClientEvent:Connect(function()
 			burstConfetti(Vector3.new(15, 10, 0), 70)
 		end)
 	end
+end)
+
+-- 3-Minute Disco Party Flashing Lights
+local discoActive = false
+Network.GetEvent("DiscoPartyStart").OnClientEvent:Connect(function(duration: number)
+	if discoActive then
+		return
+	end
+	discoActive = true
+
+	local Lighting = game:GetService("Lighting")
+	local origAmbient = Lighting.Ambient
+	local cc = Instance.new("ColorCorrectionEffect")
+	cc.Name = "DiscoTint"
+	cc.Saturation = 0.35
+	cc.Parent = Lighting
+
+	task.spawn(function()
+		local t0 = os.clock()
+		local dur = tonumber(duration) or 180
+		while os.clock() - t0 < dur do
+			local hue = ((os.clock() - t0) * 0.8) % 1
+			local col = Color3.fromHSV(hue, 0.85, 1)
+			cc.TintColor = col
+			Lighting.Ambient = col
+			task.wait(0.18)
+		end
+		cc:Destroy()
+		Lighting.Ambient = origAmbient
+		discoActive = false
+	end)
 end)
 ]]></ProtectedString>
       </Properties>
